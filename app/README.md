@@ -124,13 +124,6 @@ app/
 | `archive_docs`   | 회의록 + 밴드글 — `tone`(formal/friendly), `tags` JSON |
 | `cms_blocks`     | 관리자 편집 가능한 랜딩 텍스트 |
 
-## 🔮 다음 단계 (Phase 2~4)
-
-| Phase | 무엇 | 자격증명 |
-|-------|------|---------|
-| **2** | Google Drive 회의록 자동 수집 + Gemini RAG | Google Cloud + Drive API + Gemini API |
-| **3** | 백오피스 고도화 (드래그앤드롭 CMS, 가족별 통계) | (없음) |
-| **4** | Vercel 배포 + Resend 이메일 + Supabase Postgres | Vercel·Resend·Supabase 계정 |
 
 ## 🧪 빠른 테스트 시나리오
 
