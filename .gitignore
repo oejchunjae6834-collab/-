@@ -1,0 +1,43 @@
+# 디적디적 프로젝트 루트 .gitignore
+# (app/.gitignore 가 추가로 더 적용됨)
+
+# Node
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# 환경변수
+.env
+.env.local
+.env*.local
+!.env.example
+
+# SQLite (시드는 코드로 재생성)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# 사용자 업로드 (코드 외 산출물)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# 로그
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 에디터
+.vscode/
+.idea/
+*.swp
+
+# Claude Code 작업폴더 (선택적)
+.claude/

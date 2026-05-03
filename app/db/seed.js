@@ -1,0 +1,207 @@
+/**
+ * 시드 데이터 — 운영진/일정/아카이브/CMS 기본값 채우기
+ * 사용법: npm run db:seed
+ *
+ * 안전장치: 기존 데이터는 건드리지 않고, 비어 있을 때만 채웁니다.
+ */
+const { DatabaseSync } = require('node:sqlite');
+const path = require('node:path');
+const fs = require('node:fs');
+
+const dbPath = path.join(__dirname, '..', 'data', 'dijeokdijeok.db');
+if (!fs.existsSync(dbPath)) {
+  console.error('❌ DB가 없습니다. 먼저 npm run db:init 을 실행하세요.');
+  process.exit(1);
+}
+
+const db = new DatabaseSync(dbPath);
+db.exec('PRAGMA foreign_keys = ON');
+
+function seedTable(table, rows, columns) {
+  const count = db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n;
+  if (count > 0) {
+    console.log(`⏭  ${table}: ${count}건 — 시드 건너뜀`);
+    return;
+  }
+  const placeholders = columns.map(() => '?').join(', ');
+  const stmt = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
+  db.exec('BEGIN');
+  try {
+    for (const item of rows) {
+      // node:sqlite는 undefined 바인드를 거부 → null로 강제
+      stmt.run(...columns.map((c) => item[c] === undefined ? null : item[c]));
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  console.log(`✅ ${table}: ${rows.length}건 시드 완료`);
+}
+
+// ---- 사용자 ----
+const users = [
+  { email: 'oej@dijeok.test',  name: '오은진',     family_role: '운영진', family_members: '["엄마","아빠","첫째"]', is_approved: 1, role_level: 3 },
+  { email: 'ymsn@dijeok.test', name: '양미선',     family_role: '운영진', family_members: '["양미선","배우자"]',     is_approved: 1, role_level: 2 },
+  { email: 'lsjn@dijeok.test', name: '이산지나',   family_role: '운영진', family_members: '["이산지나","아이"]',     is_approved: 1, role_level: 2 },
+  { email: 'kga@dijeok.test',  name: '고경애',     family_role: '운영진', family_members: '["고경애","아이"]',       is_approved: 1, role_level: 2 },
+  { email: 'les@dijeok.test',  name: '이은숙',     family_role: '운영진', family_members: '["이은숙","아이"]',       is_approved: 1, role_level: 2 },
+  { email: 'guest@dijeok.test',name: '신청대기자', family_role: '학부모', family_members: '["엄마","아이"]',         is_approved: 0, role_level: 1 },
+];
+seedTable('users', users, ['email','name','family_role','family_members','is_approved','role_level']);
+
+// ---- 일정 ----
+const events = [
+  { title: '5월 산아책방 모임', event_type: '공개특강', start_date: '2026-05-13', end_date: null, start_time: '11:00', end_time: '14:00', location: '산아책방', description: '비회원도 함께하는 5월 산아책방 모임. 브런치를 나누며 디적디적 운영진과 인사하고, 디지털 리터러시·교육 이야기를 나눠요.', is_public: 1, is_featured: 1 },
+  { title: '5월 운영진 회의', event_type: '운영진회의', start_date: '2026-05-26', end_date: null, start_time: '21:00', end_time: '22:30', location: '구글 Meet', description: '여름 캠프 계획 수립, 회비·캠프비 최종 결정.', is_public: 0, is_featured: 0 },
+  { title: '6월 정기모임', event_type: '정기모임', start_date: '2026-06-13', end_date: null, start_time: '13:30', end_time: '20:00', location: '마하어린이도서관', description: '수학이랑 놀자 · 공동체 놀이 · 아이들 모여라 · 어른 공부 모임.', is_public: 0, is_featured: 0 },
+  { title: '7월 정기모임', event_type: '정기모임', start_date: '2026-07-25', end_date: null, start_time: '13:30', end_time: '20:00', location: '마하어린이도서관', description: '곱하기 규칙 찾기 · Mixboard 작품 발표 · 어른 공부.', is_public: 0, is_featured: 0 },
+  { title: '여름 캠프 (1일)', event_type: '여름캠프', start_date: '2026-08-08', end_date: '2026-08-08', start_time: '08:00', end_time: '20:00', location: '미정', description: '여름 캠프 · 캠프비 4만 원.', is_public: 0, is_featured: 0 },
+  { title: '이재포 이사장 공개 특강', event_type: '공개특강', start_date: '2026-04-18', end_date: null, start_time: '14:00', end_time: '16:00', location: '산아책방', description: '비회원도 환영하는 공개 특강. 사전 신청 필요.', is_public: 1, is_featured: 0 },
+  { title: '마하어린이도서관 공개 참관', event_type: '공개특강', start_date: '2026-04-19', end_date: null, start_time: '13:30', end_time: '17:30', location: '마하어린이도서관', description: '디적디적 정기모임을 외부에 공개. 가족 단위 참관 환영.', is_public: 1, is_featured: 0 },
+];
+seedTable('events', events, ['title','event_type','start_date','end_date','start_time','end_time','location','description','is_public','is_featured']);
+
+// ---- 출석 (운영진 미리 참석 표시) ----
+function rsvpRows() {
+  const adminIds = db.prepare("SELECT id FROM users WHERE role_level >= 2").all().map(r => r.id);
+  const evIds = db.prepare("SELECT id FROM events WHERE is_public = 0").all();
+  const rows = [];
+  for (const ev of evIds) {
+    for (const uid of adminIds) {
+      rows.push({ event_id: ev.id, user_id: uid, status: Math.random() > 0.2 ? 'going' : 'maybe' });
+    }
+  }
+  return rows;
+}
+seedTable('attendances', rsvpRows(), ['event_id','user_id','status']);
+
+// ---- 아카이브 ----
+const archive = [
+  { title: '겨울 캠프 기획안 검토 회의', doc_date: '2025-12-11', tone: 'formal',
+    tags: '["회의록","겨울캠프","AI리터러시"]',
+    summary: '이은숙 선생님이 수정한 양식 검토 — 개발자 이름, 주요 사용자, 문제 정의, 핵심 기능 3가지 포함. 캠프 슬로건 후보 "Show Me The App" 제안.',
+    body: null, source: 'manual' },
+  { title: '온라인 모임 후기 — 나노 바나나 프로 체험', doc_date: '2025-11-25', tone: 'friendly',
+    tags: '["후기","AI리터러시","밴드글"]',
+    summary: '3D 이미지 생성이 정교했고, 한글 텍스트가 깨지지 않고 정확하게 들어가는 점에 모두 놀랐어요. Mixboard와 비교하며 활용 시나리오도 이야기 나눴어요.',
+    body: null, source: 'manual' },
+  { title: '4월 정기모임 — 수학자 / Google Vids', doc_date: '2026-04-19', tone: 'friendly',
+    tags: '["후기","정기모임_스케치","수학이랑놀자","AI리터러시","공동체놀이"]',
+    summary: '한글 암호 풀이로 시작 → 일본 고등 입시 1번 문제 모두 풀이. 공동체 놀이는 지하정원 그림책 + 디비디비딥. 아이들 모여라에서 Google Vids로 영상 만들기.',
+    body: null, source: 'manual' },
+  { title: '4월 운영진 회의록', doc_date: '2026-04-28', tone: 'formal',
+    tags: '["회의록","결정사항"]',
+    summary: '공금 잔액 약 130만 원 · 미정산 항목 정리. 월 회비 현행 유지, 겨울 캠프비 4→5만 원 인상 방향 잠정 합의. 차기 회장은 5월 산아 책방 모임에서 제비뽑기.',
+    body: null, source: 'manual' },
+  { title: '중1 방학 공부 프로젝트 학부모 회의', doc_date: '2025-07-04', tone: 'formal',
+    tags: '["회의록","결정사항","수학이랑놀자"]',
+    summary: '중1을 대상으로 학원을 줄이고 스스로 공부하는 습관 만들기로 결정. 7월 모임에서 곱하기 규칙 찾기 활동 진행. 부모는 코치 역할로 한 발 물러나기.',
+    body: null, source: 'manual' },
+  { title: '3월 정기모임 — Gemini로 봄 음악 만들기', doc_date: '2026-03-21', tone: 'friendly',
+    tags: '["후기","아이들활동","AI리터러시"]',
+    summary: '아이들이 Gemini를 활용해 봄을 주제로 음악을 만들었어요. 한 가족씩 발표하는 시간이 무대 같았어요.',
+    body: null, source: 'manual' },
+  { title: '2월 정기모임 — Google 아트&컬쳐 앱 기획', doc_date: '2026-02-22', tone: 'friendly',
+    tags: '["후기","아이들활동","AI리터러시"]',
+    summary: 'Google 아트&컬쳐 앱을 같이 체험하고 "내가 만들고 싶은 앱"을 기획해 발표했어요. 아이디어가 다양했어요.',
+    body: null, source: 'manual' },
+  { title: '어른 공부 모임 — 다리오 아모데이 「성장통 시기의 기술」', doc_date: '2026-04-19', tone: 'friendly',
+    tags: '["후기","어른공부모임"]',
+    summary: '다리오 아모데이의 글을 같이 읽고 “AI가 가져올 성장통과 우리의 책임”에 대해 깊이 이야기 나눴어요.',
+    body: null, source: 'manual' },
+];
+seedTable('archive_docs', archive, ['title','doc_date','tone','tags','summary','body','source']);
+
+// ---- CMS 블록 ----
+const cms = [
+  { key: 'hero.kicker',  value: 'Dijeok-Dijeok · 디적디적' },
+  { key: 'hero.title',   value: 'AI 시대를 부모와 아이가\\n함께 공부하는 교육공동체' },
+  { key: 'hero.lede',    value: '한 달에 한 번 마하어린이도서관에서 모이고, 여름·겨울에는 캠프를 떠나요. 어른이 먼저 배우는 모임 — 가벼운 마음으로 오셔도 좋아요.' },
+  { key: 'about.title',  value: '디적디적은 어떤 모임인가요?' },
+  { key: 'about.body',   value: '디적디적은 AI 시대를 함께 공부하는 가족 단위 학습 공동체예요. "어른이 먼저 배우는 모임"이라는 정체성으로, 부모와 아이가 같은 자리에서 새로운 도구와 생각을 나눕니다. 매달 한 번 마하어린이도서관에서 정기모임을 갖고, 여름과 겨울에는 1박 2일 캠프를 떠나요. 운영진은 별도로 모여 다음 달 모임을 함께 준비합니다.' },
+  { key: 'notice',       value: '4월 18일(토) 산아책방에서 이재포 이사장님 공개 특강이 열립니다. 비회원도 환영해요!' },
+];
+seedTable('cms_blocks', cms, ['key','value']);
+
+// ---- 가족 구성원 (CLAUDE.md TRD 1) ----
+// 기존 users.family_members JSON을 정식 family_members 행으로 펼침
+const familyByUser = {
+  'oej@dijeok.test':  [['오은진', '부모', 42], ['배우자', '부모', 44], ['첫째', '자녀', 9]],
+  'ymsn@dijeok.test': [['양미선', '부모', 40], ['배우자', '부모', 41]],
+  'lsjn@dijeok.test': [['이산지나', '부모', 41], ['아이', '자녀', 8]],
+  'kga@dijeok.test':  [['고경애', '부모', 39], ['아이', '자녀', 7]],
+  'les@dijeok.test':  [['이은숙', '부모', 43], ['아이', '자녀', 11]],
+};
+const familyRows = [];
+for (const [email, members] of Object.entries(familyByUser)) {
+  const u = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (!u) continue;
+  members.forEach(([name, type, age], i) => {
+    familyRows.push({ parent_user_id: u.id, name, type, age, position: i });
+  });
+}
+seedTable('family_members', familyRows, ['parent_user_id','name','type','age','position']);
+
+// ---- 세션 (정기모임에 한해 표준 4세션 자동 생성) ----
+const STANDARD_SESSIONS = [
+  { name: '수학이랑 놀자', start_time: '13:30', end_time: '15:00', notes: '함께 푸는 수학 활동' },
+  { name: '공동체 놀이',   start_time: '15:10', end_time: '15:50', notes: '몸으로 어울리는 시간' },
+  { name: '아이들 모여라', start_time: '15:50', end_time: '17:30', notes: '아이들 주제 활동' },
+  { name: '마하정식 저녁식사', start_time: '17:30', end_time: '18:30', notes: '준비 인원 파악용 — 꼭 체크해 주세요', capacity: 30 },
+  { name: '어른 공부 모임', start_time: '18:40', end_time: '20:10', notes: '어른들 학습/토론' },
+];
+const sessionRows = [];
+const meetEvents = db.prepare("SELECT id FROM events WHERE event_type = '정기모임'").all();
+for (const ev of meetEvents) {
+  STANDARD_SESSIONS.forEach((s, i) => {
+    sessionRows.push({ event_id: ev.id, ...s, position: i * 10 });
+  });
+}
+seedTable('event_sessions', sessionRows, ['event_id','name','start_time','end_time','capacity','notes','position']);
+
+// ---- 보드 (메뉴) ----
+const boards = [
+  { slug: 'about',       name: '소개',      type: 'about',      description: '디적디적이 어떤 모임인지 안내해요',         read_role: 0, write_role: 3, comments_enabled: 0, position: 10, visible: 1, is_system: 1 },
+  { slug: 'portfolio',   name: '활동',      type: 'portfolio',  description: '활동 포트폴리오',                              read_role: 0, write_role: 3, comments_enabled: 0, position: 20, visible: 1, is_system: 1 },
+  { slug: 'calendar',    name: '일정',      type: 'events',     description: '월례 모임·캠프·공개 행사 일정',                read_role: 0, write_role: 3, comments_enabled: 1, position: 30, visible: 1, is_system: 1 },
+  { slug: 'archive',     name: '아카이브',  type: 'article',    description: '회의록·후기 모음',                             read_role: 2, write_role: 3, comments_enabled: 1, position: 40, visible: 1, is_system: 1 },
+  { slug: 'photos',      name: '사진첩',    type: 'gallery',    description: '모임 사진을 함께 나눠요',                       read_role: 2, write_role: 3, comments_enabled: 1, position: 50, visible: 1, is_system: 0 },
+  { slug: 'resources',   name: '자료실',    type: 'file',       description: '강의 슬라이드·참고 자료를 모아두는 곳',          read_role: 2, write_role: 3, comments_enabled: 1, position: 60, visible: 1, is_system: 0 },
+  { slug: 'assignments', name: '과제방',    type: 'assignment', description: '월별 과제와 제출/공유',                         read_role: 2, write_role: 3, comments_enabled: 1, position: 70, visible: 1, is_system: 0 },
+  { slug: 'members',     name: '회원 정보', type: 'members',    description: '회원 명단·가족 구성원',                         read_role: 2, write_role: 3, comments_enabled: 0, position: 80, visible: 1, is_system: 1 },
+  { slug: 'ai',          name: 'AI 검색',   type: 'ai',         description: '저장된 자료에서 AI가 답변',                     read_role: 2, write_role: 3, comments_enabled: 0, position: 90, visible: 1, is_system: 1 },
+];
+seedTable('boards', boards, ['slug','name','type','description','read_role','write_role','comments_enabled','position','visible','is_system']);
+
+// ---- 보드 ID 캐시 ----
+const boardId = {};
+for (const b of db.prepare('SELECT id, slug FROM boards').all()) boardId[b.slug] = b.id;
+
+// ---- 샘플 게시물 ----
+const posts = [
+  // 사진첩
+  { board_slug: 'photos', title: '4월 정기모임 단체 사진', body: '한글 암호 풀이 후 함께 찍은 단체샷이에요!', meta: '{"image_url":"https://images.unsplash.com/photo-1529390079861-591de354faf5?w=800"}', author_email: 'oej@dijeok.test', pinned: 0 },
+  { board_slug: 'photos', title: '아이들 모여라 — Google Vids 작품', body: '"2040년 우리 가족"을 영상으로!', meta: '{"image_url":"https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800"}', author_email: 'ymsn@dijeok.test', pinned: 0 },
+  { board_slug: 'photos', title: '겨울 캠프 1일차', body: '모두 함께한 즐거운 시간', meta: '{"image_url":"https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=800"}', author_email: 'oej@dijeok.test', pinned: 0 },
+  // 자료실
+  { board_slug: 'resources', title: '겨울 캠프 기획서 양식', body: '이은숙 선생님이 정리해주신 양식. 개발자 이름·주요 사용자·문제 정의·핵심 기능 3가지 포함.', meta: '{"file_url":"https://docs.google.com/document/d/example1","file_name":"winter_camp_template.docx"}', author_email: 'les@dijeok.test', pinned: 1 },
+  { board_slug: 'resources', title: '4월 수학이랑 놀자 슬라이드', body: '한글 암호 + 일본 입시 1번 문제 풀이 자료', meta: '{"file_url":"https://docs.google.com/presentation/d/1CNoIaii2DLfHxm1uMjDPy2lFaU-Hd9bRdrPHXHo5s5A/edit","file_name":"math_april.pdf"}', author_email: 'lsjn@dijeok.test', pinned: 0 },
+  { board_slug: 'resources', title: 'Google Vids 사용 가이드', body: '4월 모임에서 다룬 Google Vids 단축키 모음.', meta: '{"file_url":"https://docs.google.com/presentation/d/1BDG5h7VrYrBjNYTwJfx9gFJSTFkSpYnagbUgCBAwt4o/edit","file_name":"google_vids_guide.pdf"}', author_email: 'oej@dijeok.test', pinned: 0 },
+  // 과제방
+  { board_slug: 'assignments', title: '6월까지 — Google Vids로 "2040년 우리 가족" 영상 만들기', body: '시간이 넉넉하니 가족과 함께 천천히 만들어 보세요. 1분 내외.', meta: '{"due_date":"2026-06-13"}', author_email: 'oej@dijeok.test', pinned: 1 },
+  { board_slug: 'assignments', title: '5월까지 — Mixboard로 "내가 만들고 싶은 앱" 보드 정리', body: '아이디어 보드를 시각적으로 조립해보고, 5월 모임에서 발표해요.', meta: '{"due_date":"2026-05-13"}', author_email: 'lsjn@dijeok.test', pinned: 0 },
+  { board_slug: 'assignments', title: '5월까지 — 수학자 관련 영상 1편 공유', body: '수학자에 대한 짧은 영상을 찾아 단톡방에 공유해주세요.', meta: '{"due_date":"2026-05-13"}', author_email: 'lsjn@dijeok.test', pinned: 0 },
+];
+const postsByBoard = posts.map((p) => ({
+  board_id: boardId[p.board_slug],
+  title: p.title,
+  body: p.body,
+  meta: p.meta,
+  author_id: db.prepare('SELECT id FROM users WHERE email = ?').get(p.author_email)?.id || null,
+  pinned: p.pinned,
+}));
+seedTable('posts', postsByBoard, ['board_id','title','body','meta','author_id','pinned']);
+
+console.log('🌱 시드 완료');
+db.close();

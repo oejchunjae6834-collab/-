@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>디적디적 아카이브 — 우리의 어제를 기억하고, 우리의 내일을 설계하는 AI 파트너</title>
+  <meta name="description" content="디적디적의 회의록·밴드 게시글·교육자료 통합 검색과 AI 지식 가이드 플랫폼" />
+
+  <!-- Pretendard Web Font -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+
+  <!-- FullCalendar v6 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/ko.global.min.js"></script>
+
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <!-- ============== TOP NAV ============== -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#home" class="brand">
+        <span class="brand-mark">📚</span>
+        <span class="brand-text">
+          <strong>디적디적</strong>
+          <small>Archive &amp; AI Guide</small>
+        </span>
+      </a>
+
+      <nav class="topnav">
+        <a href="#about">소개</a>
+        <a href="#portfolio">활동 포트폴리오</a>
+        <a href="#calendar-section">일정</a>
+        <a href="#archive" data-member-only>아카이브</a>
+        <a href="#ai" data-member-only>AI 검색</a>
+      </nav>
+
+      <div class="auth-area">
+        <span id="hello" class="hello hidden">
+          안녕하세요, <strong id="hello-name"></strong> 님
+          <span id="adminBadge" class="role-pill hidden">관리자</span>
+        </span>
+        <button id="signupBtn" class="btn btn-outline">회원가입</button>
+        <button id="loginBtn" class="btn btn-primary">로그인</button>
+        <button id="logoutBtn" class="btn btn-ghost hidden">로그아웃</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============== HERO ============== -->
+  <section id="home" class="hero">
+    <div class="hero-inner">
+      <p class="kicker">Dijeok-Dijeok Knowledge Base</p>
+      <h1>
+        우리의 <span class="hl">어제를 기억</span>하고,<br />
+        우리의 <span class="hl2">내일을 설계</span>하는 AI 파트너
+      </h1>
+      <p class="lede">
+        흩어져 있던 회의록·밴드 게시글·교육자료를 한곳에 모아,
+        과거의 맥락 위에서 더 좋은 결정을 내릴 수 있도록 돕습니다.
+      </p>
+      <div class="hero-cta">
+        <a href="#ai" class="btn btn-primary btn-lg" data-member-only>AI에게 물어보기</a>
+        <a href="#portfolio" class="btn btn-outline btn-lg">활동 둘러보기</a>
+      </div>
+
+      <ul class="hero-pills">
+        <li>#AI리터러시</li>
+        <li>#수학이랑놀자</li>
+        <li>#공동체놀이</li>
+        <li>#겨울캠프</li>
+        <li>#어른공부모임</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============== MAIN GRID ============== -->
+  <main class="layout">
+    <!-- ====== LEFT / CONTENT ====== -->
+    <div class="content">
+
+      <!-- ABOUT -->
+      <section id="about" class="card">
+        <div class="card-head">
+          <h2>디적디적은 어떤 모임인가요?</h2>
+          <span class="badge badge-soft">Public</span>
+        </div>
+        <p>
+          디적디적은 <strong>AI 시대를 함께 공부하는 가족 단위 학습 공동체</strong>예요.
+          “<strong>어른이 먼저 배우는 모임</strong>”이라는 정체성으로,
+          부모와 아이가 같은 자리에서 새로운 도구와 생각을 나눕니다.
+        </p>
+        <p class="muted">
+          매달 한 번 정기모임에서 만나고, 여름·겨울에는 1박 2일 캠프를 떠나요.
+          운영진은 별도로 모여 다음 달 모임을 함께 준비합니다.
+        </p>
+
+        <div class="three-col">
+          <div class="mini">
+            <div class="mini-emoji">👨‍👩‍👧</div>
+            <h4>누가 모이나요</h4>
+            <p>AI 교육에 관심 있는 <strong>가족 단위</strong> 회원이 모여요. 아이가 함께 와도, 어른만 와도 환영입니다.</p>
+          </div>
+          <div class="mini">
+            <div class="mini-emoji">🧩</div>
+            <h4>무엇을 하나요</h4>
+            <p>수학이랑 놀자 · 공동체 놀이 · 아이들 모여라 · 어른 공부 모임을 시간대별로 운영해요.</p>
+          </div>
+          <div class="mini">
+            <div class="mini-emoji">🗓️</div>
+            <h4>어떻게 참여하나요</h4>
+            <p>다음 정기모임 일정을 확인하고 운영진에게 한 마디 남겨주세요. 가벼운 마음으로 오셔도 좋아요.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- PORTFOLIO -->
+      <section id="portfolio" class="card">
+        <div class="card-head">
+          <h2>활동 포트폴리오</h2>
+          <span class="badge badge-soft">Public</span>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="ai">AI · 디지털 리터러시</button>
+          <button class="tab" data-tab="math">수학이랑 놀자</button>
+          <button class="tab" data-tab="play">공동체 놀이</button>
+          <button class="tab" data-tab="adult">어른 공부 모임</button>
+        </div>
+
+        <div class="tab-panel active" data-tab="ai">
+          <div class="grid-3">
+            <article class="port-item">
+              <h4>나노 바나나 프로</h4>
+              <p>3D 이미지 생성과 한글 텍스트 정확도가 인상적이었던 이미지 도구.</p>
+              <small class="muted">11.25 온라인 모임</small>
+            </article>
+            <article class="port-item">
+              <h4>Google Mixboard</h4>
+              <p>아이디어 보드를 시각적으로 조립하며 협업 과제를 만들어보았어요.</p>
+              <small class="muted">정기모임 과제</small>
+            </article>
+            <article class="port-item">
+              <h4>Google Vids</h4>
+              <p>“2040년 우리 가족” 1분 영상 만들기 — 영상·음악·편집을 한 도구로.</p>
+              <small class="muted">4월 정기모임</small>
+            </article>
+            <article class="port-item">
+              <h4>NotebookLM</h4>
+              <p>긴 자료를 요약·인용 가능한 형태로 조직화하는 학습 파트너.</p>
+              <small class="muted">어른 공부 모임</small>
+            </article>
+            <article class="port-item">
+              <h4>Opal</h4>
+              <p>간단한 워크플로우 자동화로 모임 운영을 가볍게.</p>
+              <small class="muted">운영진 시연</small>
+            </article>
+            <article class="port-item">
+              <h4>Gemini</h4>
+              <p>가족 단위 활용 사례 — 글쓰기·번역·아이 질문에 같이 답하기.</p>
+              <small class="muted">상시 활용</small>
+            </article>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-tab="math">
+          <div class="grid-3">
+            <article class="port-item">
+              <h4>마법 수학</h4>
+              <p>한글 암호 만들기, 일본 고등 입시 1번 문제 풀기 — 모두 성공!</p>
+              <small class="muted">4월 정기모임</small>
+            </article>
+            <article class="port-item">
+              <h4>피보나치 수열</h4>
+              <p>자연 속 수열을 찾아보고 0의 의미를 이야기 나눴어요.</p>
+              <small class="muted">정기모임</small>
+            </article>
+            <article class="port-item">
+              <h4>곱하기 규칙 찾기</h4>
+              <p>중1 학습 프로젝트 일환 — 스스로 패턴을 발견하는 시간.</p>
+              <small class="muted">7월 모임</small>
+            </article>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-tab="play">
+          <div class="grid-3">
+            <article class="port-item">
+              <h4>지하정원 그림책 읽기</h4>
+              <p>조용히 듣는 시간이 가장 멋진 풍경이 되곤 합니다.</p>
+              <small class="muted">4월 공동체놀이</small>
+            </article>
+            <article class="port-item">
+              <h4>디비디비딥</h4>
+              <p>몸으로 하는 가위바위보 — 왕이 되면 모두에게 절을 받아요.</p>
+              <small class="muted">상시</small>
+            </article>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-tab="adult">
+          <div class="grid-3">
+            <article class="port-item">
+              <h4>인공지능 폭발</h4>
+              <p>“AI는 진짜 이해하는가?”에 대한 성찰적 질문 나누기.</p>
+              <small class="muted">이재포 이사장 강의</small>
+            </article>
+            <article class="port-item">
+              <h4>중1 방학 공부 프로젝트</h4>
+              <p>학원을 줄이고 스스로 공부하는 습관 만들기 — 학부모 회의 결과.</p>
+              <small class="muted">7월 회의</small>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- CALENDAR -->
+      <section id="calendar-section" class="card">
+        <div class="card-head">
+          <h2>모임 일정</h2>
+          <div class="head-tools">
+            <button class="btn btn-outline btn-sm admin-only" id="addEventBtn">+ 일정 추가</button>
+            <span class="badge badge-soft">Public</span>
+          </div>
+        </div>
+        <p class="muted small">
+          관리자가 등록한 공식 일정이 표시됩니다. 날짜를 클릭하면 세부 정보가 열립니다.
+          <span data-member-only>로그인하시면 참석/불참 상태를 바로 토글할 수 있어요.</span>
+        </p>
+        <div id="calendar"></div>
+      </section>
+
+      <!-- ARCHIVE (member only) -->
+      <section id="archive" class="card member-only">
+        <div class="card-head">
+          <h2>회의록 아카이브</h2>
+          <div class="head-tools">
+            <button class="btn btn-outline btn-sm admin-only" id="addArchiveBtn">+ 새 글 작성</button>
+            <span class="badge badge-warm">Members</span>
+          </div>
+        </div>
+        <p class="muted small">
+          모든 회원이 모든 회의록을 열람할 수 있습니다. 학부모 회의 내용도 투명하게 공유됩니다.
+        </p>
+
+        <div class="filter-row">
+          <input id="archiveSearch" type="search" placeholder="회의록·밴드글 키워드로 빠르게 찾기" />
+          <div class="chip-row" id="tagChips">
+            <button class="chip active" data-tag="all">전체</button>
+            <button class="chip" data-tag="회의록">#회의록</button>
+            <button class="chip" data-tag="후기">#후기</button>
+            <button class="chip" data-tag="겨울캠프">#겨울캠프</button>
+            <button class="chip" data-tag="수학이랑놀자">#수학이랑놀자</button>
+            <button class="chip" data-tag="AI리터러시">#AI리터러시</button>
+            <button class="chip" data-tag="공동체놀이">#공동체놀이</button>
+          </div>
+        </div>
+
+        <div id="archiveList" class="archive-list"></div>
+      </section>
+
+      <!-- AI SEARCH (member only) -->
+      <section id="ai" class="card member-only">
+        <div class="card-head">
+          <h2>AI에게 물어보기</h2>
+          <span class="badge badge-warm">Members · RAG</span>
+        </div>
+        <p class="muted small">
+          저장된 회의록과 밴드글을 바탕으로 답변합니다. <strong>회의록 기반은 개조식</strong>으로,
+          <strong>밴드글 기반은 친근한 대화체</strong>로 자동 변환됩니다.
+        </p>
+
+        <form id="aiForm" class="ai-input">
+          <input id="aiQuery" type="text" autocomplete="off"
+                 placeholder="예: 겨울 캠프 기획서 양식에 뭐가 들어갔지?" />
+          <button class="btn btn-primary" type="submit">물어보기</button>
+        </form>
+
+        <div class="suggest-row">
+          <span class="muted small">예시 질문:</span>
+          <button class="ghost-chip" data-q="겨울 캠프 기획서 양식에 뭐가 들어갔지?">겨울 캠프 기획서</button>
+          <button class="ghost-chip" data-q="예전에 수학 공부 어떻게 시키기로 했어?">중1 수학 공부법</button>
+          <button class="ghost-chip" data-q="나노 바나나 프로 특징이 뭐야?">나노 바나나 특징</button>
+          <button class="ghost-chip" data-q="겨울 캠프 슬로건 후보 뭐였지?">캠프 슬로건</button>
+          <button class="ghost-chip" data-q="다음 정기모임 언제야?">다음 일정</button>
+        </div>
+
+        <div id="aiResult" class="ai-result"></div>
+      </section>
+
+    </div>
+
+    <!-- ====== RIGHT / SIDEBAR ====== -->
+    <aside class="sidebar">
+      <!-- Mini calendar widget -->
+      <section class="card sticky">
+        <div class="card-head">
+          <h3>이번 달 일정</h3>
+        </div>
+        <div id="miniCal"></div>
+        <div class="legend">
+          <span><i class="dot dot-meet"></i> 정기모임</span>
+          <span><i class="dot dot-camp"></i> 캠프</span>
+          <span><i class="dot dot-board"></i> 운영진</span>
+        </div>
+      </section>
+
+      <!-- Next meeting card -->
+      <section class="card">
+        <div class="card-head">
+          <h3>다음 모임</h3>
+        </div>
+        <div id="nextMeeting"></div>
+      </section>
+
+      <!-- Tag cloud -->
+      <section class="card">
+        <div class="card-head"><h3>인기 태그</h3></div>
+        <div class="cloud">
+          <span class="cloud-item lg">#겨울캠프</span>
+          <span class="cloud-item md">#수학이랑놀자</span>
+          <span class="cloud-item lg">#AI리터러시</span>
+          <span class="cloud-item sm">#공동체놀이</span>
+          <span class="cloud-item md">#어른공부모임</span>
+          <span class="cloud-item sm">#정기모임</span>
+          <span class="cloud-item md">#회의록</span>
+          <span class="cloud-item sm">#후기</span>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-inner">
+      <span>© 디적디적 · AI 교육 학습 공동체</span>
+      <span class="muted small">프로토타입 · 실제 운영 데이터로 교체 가능</span>
+    </div>
+  </footer>
+
+  <!-- ============== AUTH MODAL (login + signup) ============== -->
+  <div id="authModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-back" data-close></div>
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3 id="authTitle">회원 로그인</h3>
+        <button class="x" data-close>×</button>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-auth="login">로그인</button>
+        <button class="auth-tab" data-auth="signup">회원가입</button>
+      </div>
+
+      <!-- LOGIN PANEL -->
+      <div class="auth-panel active" data-auth="login">
+        <p class="muted small">
+          등록된 회원을 선택해 입장해 주세요.
+          <strong>오은진</strong>(회장) 선택 시 관리자 모드로 진입합니다.
+        </p>
+        <div id="memberPick" class="member-pick"></div>
+      </div>
+
+      <!-- SIGNUP PANEL -->
+      <div class="auth-panel" data-auth="signup">
+        <p class="muted small">
+          가족 단위 모임이라 정식 회원은 운영진 확인 후 등록돼요.
+          아래 폼으로 신청하면 운영진 검토 뒤 가입이 완료됩니다.
+          <em>(데모에서는 즉시 가입되어 바로 입장돼요.)</em>
+        </p>
+        <form id="signupForm" class="form-grid">
+          <label>
+            <span>이름 <em>*</em></span>
+            <input type="text" name="name" required placeholder="예: 김디적" />
+          </label>
+          <label>
+            <span>가족 형태 <em>*</em></span>
+            <select name="family" required>
+              <option value="">선택</option>
+              <option>학부모</option>
+              <option>아이</option>
+              <option>운영진</option>
+              <option>외부 강사</option>
+            </select>
+          </label>
+          <label class="full">
+            <span>가입 동기 (선택)</span>
+            <textarea name="motive" rows="2" placeholder="어떻게 디적디적을 알게 되셨나요?"></textarea>
+          </label>
+          <label class="full">
+            <span>가입 코드 <em>*</em></span>
+            <input type="text" name="code" required placeholder="운영진에게 받은 코드" />
+            <small class="muted">데모용 코드: <code>dijeok2026</code></small>
+          </label>
+          <button type="submit" class="btn btn-primary full">가입 신청</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== EVENT MODAL ============== -->
+  <div id="eventModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-back" data-close></div>
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3 id="evTitle">일정</h3>
+        <div class="head-actions">
+          <button class="icon-btn admin-only" id="editEventBtn" title="수정">✎</button>
+          <button class="icon-btn icon-danger admin-only" id="deleteEventBtn" title="삭제">🗑</button>
+          <button class="x" data-close>×</button>
+        </div>
+      </div>
+      <div id="evMeta" class="ev-meta"></div>
+      <p id="evDesc" class="muted"></p>
+
+      <div id="rsvpBox" class="rsvp-box hidden">
+        <h4>참석 여부</h4>
+        <div class="rsvp-toggle">
+          <button class="r-btn" data-rsvp="going">참석</button>
+          <button class="r-btn" data-rsvp="no">불참</button>
+          <button class="r-btn" data-rsvp="maybe">미정</button>
+        </div>
+        <h4 class="mt">실시간 명단</h4>
+        <div id="rsvpLists" class="rsvp-lists"></div>
+      </div>
+
+      <p id="rsvpGuestNote" class="muted small hidden">
+        참석 명단은 회원 로그인 후 확인할 수 있어요.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============== EVENT EDITOR (admin) ============== -->
+  <div id="eventEditModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-back" data-close></div>
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3 id="evEditTitle">일정 추가</h3>
+        <button class="x" data-close>×</button>
+      </div>
+      <form id="eventEditForm" class="form-grid">
+        <input type="hidden" name="id" />
+        <label class="full">
+          <span>제목 <em>*</em></span>
+          <input type="text" name="title" required placeholder="예: 6월 정기모임" />
+        </label>
+        <label>
+          <span>시작 날짜 <em>*</em></span>
+          <input type="date" name="date" required />
+        </label>
+        <label>
+          <span>종료 날짜 <small>(캠프 등)</small></span>
+          <input type="date" name="endDate" />
+        </label>
+        <label>
+          <span>시간</span>
+          <input type="text" name="time" placeholder="예: 13:30 ~ 17:00" />
+        </label>
+        <label>
+          <span>분류 <em>*</em></span>
+          <select name="type" required>
+            <option value="meet">정기모임</option>
+            <option value="camp">캠프</option>
+            <option value="board">운영진 회의</option>
+          </select>
+        </label>
+        <label class="full">
+          <span>장소</span>
+          <input type="text" name="where" placeholder="예: 마하어린이도서관" />
+        </label>
+        <label class="full">
+          <span>설명 / 안건</span>
+          <textarea name="desc" rows="3" placeholder="간단히 적어주세요."></textarea>
+        </label>
+        <div class="form-actions full">
+          <button type="button" class="btn btn-ghost" data-close>취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============== ARCHIVE EDITOR (admin) ============== -->
+  <div id="archiveEditModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-back" data-close></div>
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3 id="arcEditTitle">아카이브 글 작성</h3>
+        <button class="x" data-close>×</button>
+      </div>
+      <form id="archiveEditForm" class="form-grid">
+        <input type="hidden" name="id" />
+        <label class="full">
+          <span>제목 <em>*</em></span>
+          <input type="text" name="title" required placeholder="예: 6월 운영진 회의록" />
+        </label>
+        <label>
+          <span>날짜 <em>*</em></span>
+          <input type="date" name="date" required />
+        </label>
+        <label>
+          <span>문체 <em>*</em></span>
+          <select name="tone" required>
+            <option value="formal">개조식 (회의록)</option>
+            <option value="friendly">친근체 (밴드글)</option>
+          </select>
+        </label>
+        <label class="full">
+          <span>태그 <em>*</em></span>
+          <input type="text" name="tags" required
+                 placeholder="쉼표로 구분 — 예: 회의록, 결정사항, 겨울캠프" />
+          <small class="muted">자주 쓰는 태그: #회의록 #후기 #결정사항 #겨울캠프 #수학이랑놀자 #AI리터러시 #공동체놀이</small>
+        </label>
+        <label class="full">
+          <span>요약 / 본문 <em>*</em></span>
+          <textarea name="summary" rows="5" required
+                    placeholder="회의록이면 결정사항 위주로, 밴드글이면 분위기를 살려 적어주세요."></textarea>
+        </label>
+        <div class="form-actions full">
+          <button type="button" class="btn btn-ghost" data-close>취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============== CONFIRM ============== -->
+  <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-back" data-close></div>
+    <div class="modal-body confirm-body">
+      <h3 id="confirmTitle">정말 삭제할까요?</h3>
+      <p id="confirmDesc" class="muted">이 작업은 되돌릴 수 없어요.</p>
+      <div class="form-actions">
+        <button class="btn btn-ghost" data-close>취소</button>
+        <button class="btn btn-danger" id="confirmYes">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== TOAST ============== -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
