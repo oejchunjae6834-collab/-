@@ -76,7 +76,6 @@ export default function ArchiveAdmin({ initialDocs }) {
                 <div className="arc-tags" style={{ justifyContent: 'flex-start', marginTop: 6 }}>
                   <span className={`arc-tag tone-${d.tone}`}>{d.tone === 'formal' ? '개조식' : '친근체'}</span>
                   {(d.tagsArr || []).map((t) => <span key={t} className="arc-tag">#{t}</span>)}
-                  {d.source === 'drive' && <span className="arc-tag" style={{ background: 'var(--warm-soft)' }}>📁 Drive</span>}
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

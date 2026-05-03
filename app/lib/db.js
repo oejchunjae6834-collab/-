@@ -9,10 +9,11 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const DB_PATH = path.join(DATA_DIR, 'dijeokdijeok.db');
+// DB 파일 위치: env로 덮어쓰기 가능 (배포 시 영구 디스크 경로 지정).
+// 예) Render Disk 마운트: DB_PATH=/var/data/dijeokdijeok.db
+const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), 'data', 'dijeokdijeok.db');
+const DB_DIR = path.dirname(DB_PATH);
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 
 let _db;
 export function getDb() {
@@ -44,6 +45,9 @@ export function migrate() {
 
   // 컬럼 추가 후에야 만들 수 있는 인덱스
   db.exec('CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id)');
+
+  // AI 검색 기능 제거 — 과거 시드의 'ai' 보드를 메뉴에서 숨김
+  db.exec("UPDATE boards SET visible = 0 WHERE slug = 'ai'");
 }
 
 /**

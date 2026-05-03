@@ -147,7 +147,7 @@ export default function NewPostForm({ boardSlug, boardType, backHref }) {
                     ? setForm({ ...form, image_url: e.target.value })
                     : setForm({ ...form, file_url: e.target.value })
                   }
-                  placeholder={isImage ? 'https://… (이미지 직접 링크)' : 'https://drive.google.com/…'}
+                  placeholder={isImage ? 'https://… (이미지 직접 링크)' : 'https://example.com/file.pdf'}
                 />
               </label>
               {!isImage && (

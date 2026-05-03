@@ -55,7 +55,9 @@ export async function POST(req) {
 
   const ext = safeExt(file);
   const fname = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
-  const dir = path.join(process.cwd(), 'public', 'uploads');
+  // 업로드 저장 위치: env로 덮어쓰기 가능 (배포 시 영구 디스크 경로).
+  // 예) Render Disk: UPLOAD_DIR=/var/data/uploads
+  const dir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'public', 'uploads');
   await mkdir(dir, { recursive: true });
   const filepath = path.join(dir, fname);
   const arrayBuffer = await file.arrayBuffer();

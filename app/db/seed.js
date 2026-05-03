@@ -8,7 +8,7 @@ const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const dbPath = path.join(__dirname, '..', 'data', 'dijeokdijeok.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'dijeokdijeok.db');
 if (!fs.existsSync(dbPath)) {
   console.error('❌ DB가 없습니다. 먼저 npm run db:init 을 실행하세요.');
   process.exit(1);
@@ -170,9 +170,11 @@ const boards = [
   { slug: 'resources',   name: '자료실',    type: 'file',       description: '강의 슬라이드·참고 자료를 모아두는 곳',          read_role: 2, write_role: 3, comments_enabled: 1, position: 60, visible: 1, is_system: 0 },
   { slug: 'assignments', name: '과제방',    type: 'assignment', description: '월별 과제와 제출/공유',                         read_role: 2, write_role: 3, comments_enabled: 1, position: 70, visible: 1, is_system: 0 },
   { slug: 'members',     name: '회원 정보', type: 'members',    description: '회원 명단·가족 구성원',                         read_role: 2, write_role: 3, comments_enabled: 0, position: 80, visible: 1, is_system: 1 },
-  { slug: 'ai',          name: 'AI 검색',   type: 'ai',         description: '저장된 자료에서 AI가 답변',                     read_role: 2, write_role: 3, comments_enabled: 0, position: 90, visible: 1, is_system: 1 },
 ];
 seedTable('boards', boards, ['slug','name','type','description','read_role','write_role','comments_enabled','position','visible','is_system']);
+
+// 'ai' 보드가 과거 시드로 남아 있다면 숨김 (AI 검색 기능 제거됨)
+db.prepare(`UPDATE boards SET visible = 0 WHERE slug = 'ai'`).run();
 
 // ---- 보드 ID 캐시 ----
 const boardId = {};

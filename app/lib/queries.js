@@ -412,6 +412,23 @@ export function deleteSession(id) {
   return getDb().prepare('DELETE FROM event_sessions WHERE id = ?').run(id);
 }
 
+/**
+ * 일정에 세션이 하나도 없으면 "전체 모임" 단일 세션을 자동 생성.
+ * 모든 일정을 가족×세션 그리드로 통일하기 위한 호환 헬퍼.
+ */
+export function ensureEventHasSession(eventId) {
+  ensure();
+  const db = getDb();
+  const cnt = db.prepare('SELECT COUNT(*) AS n FROM event_sessions WHERE event_id = ?').get(eventId)?.n ?? 0;
+  if (cnt > 0) return;
+  const ev = getEvent(eventId);
+  if (!ev) return;
+  db.prepare(
+    `INSERT INTO event_sessions (event_id, name, start_time, end_time, capacity, notes, position)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(eventId, '전체 모임', ev.start_time || null, ev.end_time || null, null, null, 10);
+}
+
 /* ========== 세션 출석 (가족×세션 매트릭스) ========== */
 export function setSessionAttendance(sessionId, familyMemberId, status) {
   ensure();
@@ -453,6 +470,115 @@ export function myFamilySessionStatus(eventId, parentUserId) {
     JOIN event_sessions s ON s.id = sa.session_id
     WHERE s.event_id = ? AND fm.parent_user_id = ?
   `).all(eventId, parentUserId));
+}
+
+/* ========== 활동 포트폴리오 (CLAUDE.md 2-B) ========== */
+const PORTFOLIO_CATEGORIES = ['adult', 'kids', 'math', 'play'];
+const PORTFOLIO_SEED = {
+  adult: [
+    { title: '딥리서치 활용', body: '특정 주제를 깊이 파보는 AI 도구로 자료 수집·정리 실험.', tag: '2026 진행중' },
+    { title: 'Agentic AI 실습', body: '에이전트형 AI가 어디까지 자율적으로 작업을 수행하는지 함께 검증.', tag: '2026 진행중' },
+    { title: '다리오 아모데이 「성장통 시기의 기술」', body: 'AI 시대의 기술 발전과 책임에 대한 독서 토론.', tag: '4월' },
+    { title: '인공지능 폭발(Intelligence Explosion)', body: '"AI는 진짜 이해하는가?" 성찰적 질문 나눔.', tag: '이재포 이사장' },
+  ],
+  kids: [
+    { title: '구글 아트&컬쳐 앱 기획', body: '체험 후 "내가 만들고 싶은 앱"을 가족별로 발표.', tag: '2월' },
+    { title: 'Gemini로 봄 음악 작곡', body: '봄을 주제로 멜로디·가사 만들기. 가족 무대.', tag: '3월' },
+    { title: 'Google Vids로 2040년 가족 영상', body: '1분 영상 만들기 — 영상·음악·편집을 한 도구로.', tag: '4월 과제' },
+    { title: '모듈러 연산 / 시저 암호', body: '수학과 AI의 만남 — 직접 암호를 만들고 풀어보기.', tag: '수시' },
+    { title: '나노 바나나 프로 체험', body: '3D 이미지 생성과 한글 텍스트 정확도 실험.', tag: '11월 온라인' },
+  ],
+  math: [
+    { title: '한글 암호 풀이', body: '이산지나 선생님이 만들어 온 암호를 함께 풀었어요.', tag: '4월' },
+    { title: '일본 고등 입시 1번', body: '겁먹지 않고 끝까지 — 모두 풀이 성공!', tag: '4월' },
+    { title: '곱하기 규칙 찾기', body: '중1 대상 — 패턴을 스스로 발견하기.', tag: '7월' },
+    { title: '피보나치 수열', body: '자연 속 수열을 찾아보고 0의 의미 이야기.', tag: '수시' },
+  ],
+  play: [
+    { title: '지하정원 그림책 읽기', body: '조용히 듣는 시간이 가장 멋진 풍경이 되곤 합니다.', tag: '4월' },
+    { title: '디비디비딥', body: '몸으로 하는 가위바위보 — 왕이 되면 절을 받아요.', tag: '상시' },
+    { title: '서로 이름 외우기', body: '공을 주고받으며 이름을 부르는 시간.', tag: '신입 환영' },
+  ],
+};
+
+function ensurePortfolioSeed() {
+  const db = getDb();
+  const n = db.prepare('SELECT COUNT(*) AS n FROM portfolio_items').get()?.n ?? 0;
+  if (n > 0) return;
+  const ins = db.prepare(
+    'INSERT INTO portfolio_items (category, title, body, tag, position) VALUES (?, ?, ?, ?, ?)'
+  );
+  for (const cat of PORTFOLIO_CATEGORIES) {
+    (PORTFOLIO_SEED[cat] || []).forEach((it, i) => {
+      ins.run(cat, it.title, it.body || null, it.tag || null, (i + 1) * 10);
+    });
+  }
+}
+
+export function listPortfolioItems({ visibleOnly = false, category } = {}) {
+  ensure();
+  ensurePortfolioSeed();
+  const conds = [];
+  const args = [];
+  if (visibleOnly) conds.push('visible = 1');
+  if (category) { conds.push('category = ?'); args.push(category); }
+  const where = conds.length ? ` WHERE ${conds.join(' AND ')}` : '';
+  return toPlainArr(getDb().prepare(
+    `SELECT * FROM portfolio_items${where} ORDER BY category ASC, position ASC, id ASC`
+  ).all(...args));
+}
+export function getPortfolioItem(id) {
+  ensure();
+  return toPlain(getDb().prepare('SELECT * FROM portfolio_items WHERE id = ?').get(id));
+}
+export function createPortfolioItem(data) {
+  ensure();
+  const cat = PORTFOLIO_CATEGORIES.includes(data.category) ? data.category : 'adult';
+  const max = getDb().prepare(
+    'SELECT MAX(position) AS m FROM portfolio_items WHERE category = ?'
+  ).get(cat)?.m ?? 0;
+  const r = getDb().prepare(
+    `INSERT INTO portfolio_items (category, title, body, tag, image_url, position, visible)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    cat,
+    data.title,
+    data.body ?? null,
+    data.tag ?? null,
+    data.image_url ?? null,
+    (max + 10),
+    data.visible === 0 ? 0 : 1
+  );
+  return getPortfolioItem(Number(r.lastInsertRowid));
+}
+export function updatePortfolioItem(id, data) {
+  ensure();
+  const cols = ['category', 'title', 'body', 'tag', 'image_url', 'position', 'visible'];
+  const present = cols.filter((c) => data[c] !== undefined);
+  if (!present.length) return getPortfolioItem(id);
+  const sets = present.map((c) => `${c} = ?`).join(', ');
+  getDb().prepare(
+    `UPDATE portfolio_items SET ${sets}, updated_at = datetime('now','localtime') WHERE id = ?`
+  ).run(...present.map((c) => data[c]), id);
+  return getPortfolioItem(id);
+}
+export function deletePortfolioItem(id) {
+  ensure();
+  return getDb().prepare('DELETE FROM portfolio_items WHERE id = ?').run(id);
+}
+export function movePortfolioItem(id, dir) {
+  ensure();
+  const me = getPortfolioItem(id);
+  if (!me) return null;
+  const sibs = toPlainArr(getDb().prepare(
+    'SELECT * FROM portfolio_items WHERE category = ? ORDER BY position ASC, id ASC'
+  ).all(me.category));
+  const idx = sibs.findIndex((s) => s.id === id);
+  const swap = dir === 'up' ? sibs[idx - 1] : sibs[idx + 1];
+  if (!swap) return null;
+  getDb().prepare('UPDATE portfolio_items SET position = ? WHERE id = ?').run(swap.position, me.id);
+  getDb().prepare('UPDATE portfolio_items SET position = ? WHERE id = ?').run(me.position, swap.id);
+  return true;
 }
 
 /* ========== Public RSVP (외부인 신청) ========== */

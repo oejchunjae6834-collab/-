@@ -39,7 +39,6 @@ export default function ArchiveDetail({ params }) {
             <span className="ev-pill">📅 {doc.doc_date}</span>
             <span className={`arc-tag tone-${doc.tone}`}>{doc.tone === 'formal' ? '개조식' : '친근체'}</span>
             {tags.map((t) => <span key={t} className="arc-tag">#{t}</span>)}
-            {doc.source === 'drive' && <span className="ev-pill" style={{ background: 'var(--warm-soft)' }}>📁 Drive</span>}
           </div>
 
           <div style={{ marginTop: 16 }}>

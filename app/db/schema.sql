@@ -203,3 +203,21 @@ CREATE TABLE IF NOT EXISTS session_attendances (
 );
 CREATE INDEX IF NOT EXISTS idx_sa_session ON session_attendances(session_id);
 CREATE INDEX IF NOT EXISTS idx_sa_member  ON session_attendances(family_member_id);
+
+-- ============================================================
+-- 활동 포트폴리오 (CLAUDE.md 2-B): 비회원에게 노출되는 활동 카드
+-- 카테고리(어른/아이/수학/놀이) × 정렬 가능 × 이미지 첨부
+-- ============================================================
+CREATE TABLE IF NOT EXISTS portfolio_items (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  category    TEXT NOT NULL CHECK (category IN ('adult','kids','math','play')),
+  title       TEXT NOT NULL,
+  body        TEXT,
+  tag         TEXT,
+  image_url   TEXT,
+  position    INTEGER NOT NULL DEFAULT 100,
+  visible     INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_cat ON portfolio_items(category, position);

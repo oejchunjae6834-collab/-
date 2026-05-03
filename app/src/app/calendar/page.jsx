@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { getCurrentUser, ROLES } from '@/lib/auth.js';
 import {
-  listEvents, listAttendance, myAttendance,
+  listEvents,
   listSessions, listFamilyMembers, listEventSessionAttendances, myFamilySessionStatus,
+  ensureEventHasSession,
 } from '@/lib/queries.js';
-import RsvpRow from './rsvp-row.jsx';
 import FamilySessionGrid from '@/components/FamilySessionGrid.jsx';
 import MiniCalendar from '@/components/MiniCalendar.jsx';
 
@@ -25,6 +25,11 @@ export default function CalendarPage() {
   // 비회원: 공개 일정만, 회원: 모두
   const events = isMember ? listEvents() : listEvents({ publicOnly: true });
   const myFamily = isMember ? listFamilyMembers(me.id) : [];
+
+  // 회원 페이지에서는 모든 일정에 최소 1개 세션을 보장 (없으면 "전체 모임" 자동 생성)
+  if (isMember) {
+    for (const ev of events) ensureEventHasSession(ev.id);
+  }
 
   return (
     <main className="layout single">
@@ -53,7 +58,7 @@ export default function CalendarPage() {
           )}
           {isMember && myFamily.length > 0 && (
             <p className="muted small">
-              가족 구성원과 세션별로 참석 여부를 체크해 주세요. 세션별 합계가 실시간으로 보입니다.
+              가족 구성원과 세션별로 참석 여부를 체크해 주세요. 체크하면 다른 가족이 누가 참석하는지 함께 보여요.
             </p>
           )}
 
@@ -63,28 +68,20 @@ export default function CalendarPage() {
                 <p className="muted small">표시할 일정이 없어요.</p>
               ) : events.map((ev) => {
                 const sessions = listSessions(ev.id);
-                const hasSessions = sessions.length > 0;
                 let totalsBySession = {};
                 let myStatus = [];
-                if (isMember && hasSessions) {
-                  const all = listEventSessionAttendances(ev.id);
-                  for (const r of all) {
+                let allAttendances = [];
+                if (isMember && sessions.length > 0) {
+                  allAttendances = listEventSessionAttendances(ev.id);
+                  for (const r of allAttendances) {
                     totalsBySession[r.session_id] ||= { going: 0, maybe: 0, no: 0 };
                     totalsBySession[r.session_id][r.status] = (totalsBySession[r.session_id][r.status] || 0) + 1;
                   }
                   myStatus = myFamilySessionStatus(ev.id, me.id);
                 }
-                // 세션 없는 일정은 기존 단순 RSVP 유지
-                const attendance = (isMember && !hasSessions) ? listAttendance(ev.id) : [];
-                const my = (isMember && !hasSessions) ? myAttendance(ev.id, me.id) : null;
-                const goingCount = !hasSessions
-                  ? attendance.filter((a) => a.status === 'going').length
-                  : (() => {
-                      // 세션이 있는 경우 — 가장 많이 참석하는 세션의 going 수 (대표값)
-                      let max = 0;
-                      for (const t of Object.values(totalsBySession)) max = Math.max(max, t.going || 0);
-                      return max;
-                    })();
+                // 대표 참석 인원: 가장 많이 참석하는 세션 기준
+                let goingCount = 0;
+                for (const t of Object.values(totalsBySession)) goingCount = Math.max(goingCount, t.going || 0);
 
                 return (
                   <article key={ev.id} className="ev-item" style={{ display: 'block' }}>
@@ -98,7 +95,7 @@ export default function CalendarPage() {
                           <span className="ev-pill">📍 {ev.location}</span>
                           {ev.start_time && <span className="ev-pill">⏰ {ev.start_time}{ev.end_time ? `~${ev.end_time}`:''}</span>}
                           {ev.is_public ? <span className="ev-pill type-public">공개</span> : <span className="ev-pill">🔒 회원 전용</span>}
-                          {hasSessions && <span className="ev-pill">🎯 세션 {sessions.length}개</span>}
+                          {sessions.length > 1 && <span className="ev-pill">🎯 세션 {sessions.length}개</span>}
                           {isMember && <span className="ev-pill">👥 참석 {goingCount}명</span>}
                         </div>
                       </div>
@@ -106,17 +103,15 @@ export default function CalendarPage() {
 
                     {isMember && (
                       <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed var(--line)' }}>
-                        {hasSessions ? (
-                          <FamilySessionGrid
-                            sessions={sessions}
-                            familyMembers={myFamily}
-                            initialMyStatus={myStatus}
-                            sessionTotals={totalsBySession}
-                            eventId={ev.id}
-                          />
-                        ) : (
-                          <RsvpRow eventId={ev.id} initial={my} attendance={attendance} myId={me.id} />
-                        )}
+                        <FamilySessionGrid
+                          sessions={sessions}
+                          familyMembers={myFamily}
+                          initialMyStatus={myStatus}
+                          sessionTotals={totalsBySession}
+                          allAttendances={allAttendances}
+                          myUserId={me.id}
+                          eventId={ev.id}
+                        />
                       </div>
                     )}
                   </article>

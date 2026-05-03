@@ -8,7 +8,6 @@ const SLUG_HREF = {
   calendar:    '/calendar',
   archive:     '/archive',
   members:     '/members',
-  ai:          '/ai',
   photos:      '/photos',
   resources:   '/resources',
   assignments: '/assignments',

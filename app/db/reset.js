@@ -6,7 +6,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { execSync } = require('node:child_process');
 
-const dbPath = path.join(__dirname, '..', 'data', 'dijeokdijeok.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'dijeokdijeok.db');
 const wal = dbPath + '-wal';
 const shm = dbPath + '-shm';
 [dbPath, wal, shm].forEach((p) => {

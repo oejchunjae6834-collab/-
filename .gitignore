@@ -38,6 +38,7 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+.antigravity/
 
 # Claude Code 작업폴더 (선택적)
 .claude/

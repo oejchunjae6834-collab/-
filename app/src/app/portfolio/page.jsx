@@ -1,8 +1,10 @@
+import { listPortfolioItems } from '@/lib/queries.js';
 import PortfolioTabs from './tabs.jsx';
 
 export const metadata = { title: '활동 — 디적디적' };
 
 export default function PortfolioPage() {
+  const items = listPortfolioItems({ visibleOnly: true });
   return (
     <main className="layout single">
       <div className="content">
@@ -14,7 +16,7 @@ export default function PortfolioPage() {
           <p className="muted">
             매달 모임에서 어른과 아이가 함께 시도해 본 도구·주제·실험을 모았어요.
           </p>
-          <PortfolioTabs />
+          <PortfolioTabs items={items} />
         </section>
       </div>
     </main>
