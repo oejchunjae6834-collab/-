@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { consumeMagicLink } from '@/lib/auth.js';
+import { consumeMagicLink, getSiteBase } from '@/lib/auth.js';
 
 const PENDING_KEY = 'dd_signup_pending';
 
 export async function GET(req) {
   const url = new URL(req.url);
   const token = url.searchParams.get('token');
-  const base = process.env.NEXT_PUBLIC_BASE_URL || url.origin;
+  const base = getSiteBase();
 
   if (!token) {
     return NextResponse.redirect(new URL('/auth/error?reason=missing', base));

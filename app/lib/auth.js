@@ -6,7 +6,7 @@
  * - 모든 함수 async.
  */
 import crypto from 'node:crypto';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { query, queryOne, execute } from './db.js';
 
 const SESSION_COOKIE = 'dd_sid';
@@ -185,8 +185,28 @@ export function canWriteBoard(board, user, isWriterByGrant = false) {
   return false;
 }
 
+/**
+ * 사이트의 외부 접근 URL을 반환.
+ * 우선순위: NEXT_PUBLIC_BASE_URL > 현재 요청 헤더(x-forwarded-host/host) > localhost
+ * Render·Vercel 등 프록시 환경에서도 자동 동작.
+ */
+export function getSiteBase() {
+  const env = process.env.NEXT_PUBLIC_BASE_URL;
+  if (env) return env.replace(/\/$/, '');
+  try {
+    const h = headers();
+    const host = h.get('x-forwarded-host') || h.get('host');
+    if (host) {
+      const proto = h.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+      return `${proto}://${host}`;
+    }
+  } catch {
+    // headers()는 request 컨텍스트 외부에서는 호출 불가
+  }
+  return 'http://localhost:3000';
+}
+
 /** 매직링크 URL — Route Handler가 토큰 소비 + 리다이렉트 처리 */
 export function buildMagicUrl(token) {
-  const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-  return `${base}/api/auth/verify?token=${token}`;
+  return `${getSiteBase()}/api/auth/verify?token=${token}`;
 }
