@@ -3,9 +3,9 @@ import { requireAdmin } from '@/lib/auth.js';
 import { moveBoard } from '@/lib/queries.js';
 
 export async function POST(req, { params }) {
-  if (!requireAdmin()) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   const { dir } = await req.json();
   if (!['up', 'down'].includes(dir)) return NextResponse.json({ error: 'dir invalid' }, { status: 400 });
-  moveBoard(parseInt(params.id, 10), dir);
+  await moveBoard(parseInt(params.id, 10), dir);
   return NextResponse.json({ ok: true });
 }

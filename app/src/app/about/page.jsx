@@ -2,8 +2,8 @@ import { getCmsBlocks } from '@/lib/queries.js';
 
 export const metadata = { title: '소개 — 디적디적' };
 
-export default function AboutPage() {
-  const cms = getCmsBlocks(['about.title', 'about.body']);
+export default async function AboutPage() {
+  const cms = await getCmsBlocks(['about.title', 'about.body']);
 
   return (
     <main className="layout single">

@@ -5,10 +5,11 @@ import NewPostForm from '@/components/NewPostForm.jsx';
 
 export const metadata = { title: '과제 출제 — 디적디적' };
 
-export default function NewAssignment() {
-  const me = getCurrentUser();
-  const board = getBoard('assignments');
-  if (!canWriteBoard(board, me, isBoardWriter)) redirect('/assignments');
+export default async function NewAssignment() {
+  const me = await getCurrentUser();
+  const board = await getBoard('assignments');
+  const isWriter = me ? await isBoardWriter(board.id, me.id) : false;
+  if (!canWriteBoard(board, me, isWriter)) redirect('/assignments');
 
   return (
     <main className="layout single">

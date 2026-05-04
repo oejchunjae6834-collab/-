@@ -6,14 +6,15 @@ import { AssignmentList } from '@/components/BoardLayouts.jsx';
 
 export const metadata = { title: '과제방 — 디적디적' };
 
-export default function AssignmentsPage() {
-  const me = getCurrentUser();
-  const board = getBoard('assignments');
+export default async function AssignmentsPage() {
+  const me = await getCurrentUser();
+  const board = await getBoard('assignments');
   if (!board) redirect('/');
   if (!canReadBoard(board, me)) redirect('/login');
 
-  const posts = listPosts(board.id);
-  const canWrite = canWriteBoard(board, me, isBoardWriter);
+  const posts = await listPosts(board.id);
+  const isWriter = me ? await isBoardWriter(board.id, me.id) : false;
+  const canWrite = canWriteBoard(board, me, isWriter);
 
   return (
     <main className="layout single">

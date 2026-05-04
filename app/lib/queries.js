@@ -1,88 +1,76 @@
 /**
- * DB 조회/쓰기 유틸 — 페이지/라우트에서 import해 사용.
+ * Postgres 조회/쓰기 유틸 — 모든 함수 async.
  *
- * node:sqlite는 row를 null-prototype 객체로 반환하기 때문에,
- * React Server → Client Component로 prop 전달 시 직렬화에 실패합니다.
- * 모든 반환값을 toPlain/toPlainArr 로 한 번 정규화합니다.
+ * 페이지(server component) / API route에서 import해 사용:
+ *   const events = await listEvents();
+ *
+ * pg는 plain object를 반환하므로 toPlain 래퍼 불필요.
  */
-import { getDb, migrate, toPlain, toPlainArr } from './db.js';
-
-let _migrated = false;
-function ensure() {
-  if (_migrated) return;
-  migrate();
-  _migrated = true;
-}
+import { query, queryOne, execute } from './db.js';
 
 /* ========== Events ========== */
-export function listEvents({ publicOnly = false, featuredOnly = false } = {}) {
-  ensure();
+export async function listEvents({ publicOnly = false, featuredOnly = false } = {}) {
   let sql = `SELECT * FROM events`;
   const conds = [];
   if (publicOnly) conds.push('is_public = 1');
   if (featuredOnly) conds.push('is_featured = 1');
   if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
   sql += ' ORDER BY start_date ASC';
-  return toPlainArr(getDb().prepare(sql).all());
+  return query(sql);
 }
-export function getEvent(id) {
-  ensure();
-  return toPlain(getDb().prepare('SELECT * FROM events WHERE id = ?').get(id));
+export async function getEvent(id) {
+  return queryOne('SELECT * FROM events WHERE id = $1', [id]);
 }
-export function createEvent(data, userId) {
-  ensure();
+export async function createEvent(data, userId) {
   const cols = ['title','event_type','start_date','end_date','start_time','end_time','location','description','is_public','is_featured','created_by'];
   const vals = cols.map((c) => c === 'created_by' ? userId : (data[c] ?? null));
-  const stmt = getDb().prepare(`INSERT INTO events (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`);
-  const r = stmt.run(...vals);
-  return getEvent(Number(r.lastInsertRowid));
+  const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+  const r = await execute(`INSERT INTO events (${cols.join(',')}) VALUES (${ph}) RETURNING id`, vals);
+  return getEvent(r.rows[0].id);
 }
-export function updateEvent(id, data) {
-  ensure();
+export async function updateEvent(id, data) {
   const cols = ['title','event_type','start_date','end_date','start_time','end_time','location','description','is_public','is_featured'];
-  const sets = cols.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(`UPDATE events SET ${sets} WHERE id = ?`).run(...cols.map((c) => data[c] ?? null), id);
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE events SET ${sets} WHERE id = $${cols.length + 1}`,
+    [...cols.map((c) => data[c] ?? null), id]
+  );
   return getEvent(id);
 }
-export function deleteEvent(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM events WHERE id = ?').run(id);
+export async function deleteEvent(id) {
+  return execute('DELETE FROM events WHERE id = $1', [id]);
 }
 
 /* ========== Attendances ========== */
-export function setAttendance(eventId, userId, status) {
-  ensure();
+export async function setAttendance(eventId, userId, status) {
   if (!status) {
-    getDb().prepare('DELETE FROM attendances WHERE event_id = ? AND user_id = ?').run(eventId, userId);
+    await execute('DELETE FROM attendances WHERE event_id = $1 AND user_id = $2', [eventId, userId]);
     return null;
   }
-  getDb().prepare(`
+  await execute(`
     INSERT INTO attendances (event_id, user_id, status, updated_at)
-    VALUES (?, ?, ?, datetime('now','localtime'))
+    VALUES ($1, $2, $3, NOW())
     ON CONFLICT(event_id, user_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
-  `).run(eventId, userId, status);
+  `, [eventId, userId, status]);
   return { eventId, userId, status };
 }
-export function listAttendance(eventId) {
-  ensure();
-  return toPlainArr(getDb().prepare(`
+export async function listAttendance(eventId) {
+  return query(`
     SELECT a.status, u.id AS user_id, u.name, u.family_members
     FROM attendances a
     JOIN users u ON u.id = a.user_id
-    WHERE a.event_id = ?
+    WHERE a.event_id = $1
     ORDER BY u.name
-  `).all(eventId));
+  `, [eventId]);
 }
-export function myAttendance(eventId, userId) {
-  ensure();
-  const row = getDb().prepare('SELECT status FROM attendances WHERE event_id = ? AND user_id = ?').get(eventId, userId);
+export async function myAttendance(eventId, userId) {
+  const row = await queryOne('SELECT status FROM attendances WHERE event_id = $1 AND user_id = $2', [eventId, userId]);
   return row?.status || null;
 }
 
 /* ========== Archive ========== */
-export function listArchive({ tag, q } = {}) {
-  ensure();
-  let rows = toPlainArr(getDb().prepare(`SELECT * FROM archive_docs ORDER BY doc_date DESC`).all());
+export async function listArchive({ tag, q } = {}) {
+  let rows = await query(`SELECT * FROM archive_docs ORDER BY doc_date DESC`);
   if (tag && tag !== 'all') {
     rows = rows.filter((r) => {
       try { return JSON.parse(r.tags).includes(tag); } catch { return false; }
@@ -96,359 +84,342 @@ export function listArchive({ tag, q } = {}) {
   }
   return rows;
 }
-export function getArchive(id) {
-  ensure();
-  return toPlain(getDb().prepare('SELECT * FROM archive_docs WHERE id = ?').get(id));
+export async function getArchive(id) {
+  return queryOne('SELECT * FROM archive_docs WHERE id = $1', [id]);
 }
-export function createArchive(data) {
-  ensure();
+export async function createArchive(data) {
   const cols = ['title','doc_date','tone','tags','summary','body','source','drive_file_id'];
-  const r = getDb().prepare(`INSERT INTO archive_docs (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`)
-    .run(...cols.map((c) => data[c] ?? null));
-  return getArchive(Number(r.lastInsertRowid));
+  const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+  const r = await execute(
+    `INSERT INTO archive_docs (${cols.join(',')}) VALUES (${ph}) RETURNING id`,
+    cols.map((c) => data[c] ?? null)
+  );
+  return getArchive(r.rows[0].id);
 }
-export function updateArchive(id, data) {
-  ensure();
+export async function updateArchive(id, data) {
   const cols = ['title','doc_date','tone','tags','summary','body'];
-  const sets = cols.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(`UPDATE archive_docs SET ${sets}, updated_at = datetime('now','localtime') WHERE id = ?`)
-    .run(...cols.map((c) => data[c] ?? null), id);
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE archive_docs SET ${sets}, updated_at = NOW() WHERE id = $${cols.length + 1}`,
+    [...cols.map((c) => data[c] ?? null), id]
+  );
   return getArchive(id);
 }
-export function deleteArchive(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM archive_docs WHERE id = ?').run(id);
+export async function deleteArchive(id) {
+  return execute('DELETE FROM archive_docs WHERE id = $1', [id]);
 }
 
 /* ========== Users / Approvals ========== */
-export function listUsers({ pendingOnly = false } = {}) {
-  ensure();
+export async function listUsers({ pendingOnly = false } = {}) {
   const sql = pendingOnly
     ? `SELECT id, email, name, family_role, family_members, motive, is_approved, role_level, created_at FROM users WHERE is_approved = 0 ORDER BY created_at DESC`
     : `SELECT id, email, name, family_role, family_members, is_approved, role_level, created_at FROM users ORDER BY role_level DESC, name ASC`;
-  return toPlainArr(getDb().prepare(sql).all());
+  return query(sql);
 }
-export function approveUser(id, role_level = 2) {
-  ensure();
-  getDb().prepare(`
-    UPDATE users SET is_approved = 1, role_level = ?, approved_at = datetime('now','localtime')
-    WHERE id = ?
-  `).run(role_level, id);
+export async function approveUser(id, role_level = 2) {
+  await execute(
+    `UPDATE users SET is_approved = 1, role_level = $1, approved_at = NOW() WHERE id = $2`,
+    [role_level, id]
+  );
 }
-export function setRole(id, role_level) {
-  ensure();
-  getDb().prepare(`UPDATE users SET role_level = ?, is_approved = ? WHERE id = ?`)
-    .run(role_level, role_level >= 2 ? 1 : 0, id);
+export async function setRole(id, role_level) {
+  await execute(
+    `UPDATE users SET role_level = $1, is_approved = $2 WHERE id = $3`,
+    [role_level, role_level >= 2 ? 1 : 0, id]
+  );
 }
-export function rejectUser(id) {
-  ensure();
-  getDb().prepare('DELETE FROM users WHERE id = ?').run(id);
+export async function rejectUser(id) {
+  return execute('DELETE FROM users WHERE id = $1', [id]);
 }
 
 /* ========== CMS Blocks ========== */
-export function getCmsBlocks(keys) {
-  ensure();
+export async function getCmsBlocks(keys) {
   if (keys && keys.length) {
-    const ph = keys.map(() => '?').join(',');
-    return Object.fromEntries(
-      getDb().prepare(`SELECT key, value FROM cms_blocks WHERE key IN (${ph})`).all(...keys)
-        .map((r) => [r.key, r.value])
-    );
+    const ph = keys.map((_, i) => `$${i + 1}`).join(',');
+    const rows = await query(`SELECT key, value FROM cms_blocks WHERE key IN (${ph})`, keys);
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
   }
-  return Object.fromEntries(
-    getDb().prepare(`SELECT key, value FROM cms_blocks`).all().map((r) => [r.key, r.value])
-  );
+  const rows = await query(`SELECT key, value FROM cms_blocks`);
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
-export function setCmsBlock(key, value, userId) {
-  ensure();
-  getDb().prepare(`
-    INSERT INTO cms_blocks (key, value, updated_at, updated_by) VALUES (?, ?, datetime('now','localtime'), ?)
+export async function setCmsBlock(key, value, userId) {
+  await execute(`
+    INSERT INTO cms_blocks (key, value, updated_at, updated_by) VALUES ($1, $2, NOW(), $3)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by
-  `).run(key, value, userId);
+  `, [key, value, userId]);
 }
 
 /* ========== 회원 관리 (관리자) ========== */
-export function getUser(id) {
-  ensure();
-  return toPlain(getDb().prepare('SELECT * FROM users WHERE id = ?').get(id));
+export async function getUser(id) {
+  return queryOne('SELECT * FROM users WHERE id = $1', [id]);
 }
-export function updateUser(id, data) {
-  ensure();
-  // 수정 가능한 필드만 화이트리스트
+export async function updateUser(id, data) {
   const cols = ['name','email','family_role','family_members','permissions','is_approved','role_level'];
   const present = cols.filter((c) => data[c] !== undefined);
   if (!present.length) return getUser(id);
-  const sets = present.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(`UPDATE users SET ${sets} WHERE id = ?`)
-    .run(...present.map((c) => data[c]), id);
+  const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE users SET ${sets} WHERE id = $${present.length + 1}`,
+    [...present.map((c) => data[c]), id]
+  );
   return getUser(id);
 }
-export function deleteUser(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM users WHERE id = ?').run(id);
+export async function deleteUser(id) {
+  return execute('DELETE FROM users WHERE id = $1', [id]);
 }
 
 /* ========== 댓글 ========== */
-export function listComments(targetType, targetId) {
-  ensure();
-  return toPlainArr(getDb().prepare(`
+export async function listComments(targetType, targetId) {
+  return query(`
     SELECT c.id, c.body, c.created_at, c.user_id, c.parent_id, u.name AS user_name, u.role_level
     FROM comments c
     LEFT JOIN users u ON u.id = c.user_id
-    WHERE c.target_type = ? AND c.target_id = ?
+    WHERE c.target_type = $1 AND c.target_id = $2
     ORDER BY c.created_at ASC
-  `).all(targetType, targetId));
+  `, [targetType, targetId]);
 }
-export function createComment({ targetType, targetId, userId, body, parentId = null }) {
-  ensure();
-  // 답글의 답글이면 최상위 부모로 평탄화
+export async function createComment({ targetType, targetId, userId, body, parentId = null }) {
   let resolvedParent = parentId || null;
   if (resolvedParent) {
-    const p = getDb().prepare('SELECT parent_id FROM comments WHERE id = ?').get(resolvedParent);
+    const p = await queryOne('SELECT parent_id FROM comments WHERE id = $1', [resolvedParent]);
     if (p?.parent_id) resolvedParent = p.parent_id;
   }
-  const r = getDb().prepare(
-    'INSERT INTO comments (target_type, target_id, user_id, body, parent_id) VALUES (?, ?, ?, ?, ?)'
-  ).run(targetType, targetId, userId, body, resolvedParent);
-  return Number(r.lastInsertRowid);
+  const r = await execute(
+    'INSERT INTO comments (target_type, target_id, user_id, body, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [targetType, targetId, userId, body, resolvedParent]
+  );
+  return r.rows[0].id;
 }
-export function getComment(id) {
-  ensure();
-  return toPlain(getDb().prepare('SELECT * FROM comments WHERE id = ?').get(id));
+export async function getComment(id) {
+  return queryOne('SELECT * FROM comments WHERE id = $1', [id]);
 }
-export function deleteComment(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM comments WHERE id = ?').run(id);
+export async function deleteComment(id) {
+  return execute('DELETE FROM comments WHERE id = $1', [id]);
 }
 
 /* ========== Boards (메뉴) ========== */
-export function listBoards({ visibleOnly = false } = {}) {
-  ensure();
+export async function listBoards({ visibleOnly = false } = {}) {
   const sql = visibleOnly
     ? 'SELECT * FROM boards WHERE visible = 1 ORDER BY position ASC, id ASC'
     : 'SELECT * FROM boards ORDER BY position ASC, id ASC';
-  return toPlainArr(getDb().prepare(sql).all());
+  return query(sql);
 }
-export function getBoard(idOrSlug) {
-  ensure();
-  const row = typeof idOrSlug === 'number'
-    ? getDb().prepare('SELECT * FROM boards WHERE id = ?').get(idOrSlug)
-    : getDb().prepare('SELECT * FROM boards WHERE slug = ?').get(idOrSlug);
-  return toPlain(row);
+export async function getBoard(idOrSlug) {
+  if (typeof idOrSlug === 'number') {
+    return queryOne('SELECT * FROM boards WHERE id = $1', [idOrSlug]);
+  }
+  return queryOne('SELECT * FROM boards WHERE slug = $1', [idOrSlug]);
 }
-export function createBoard(data) {
-  ensure();
+export async function createBoard(data) {
   const cols = ['slug','name','type','description','read_role','write_role','comments_enabled','position','visible','is_system'];
-  const r = getDb().prepare(`INSERT INTO boards (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`)
-    .run(...cols.map((c) => data[c] ?? null));
-  return getBoard(Number(r.lastInsertRowid));
+  const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+  const r = await execute(
+    `INSERT INTO boards (${cols.join(',')}) VALUES (${ph}) RETURNING id`,
+    cols.map((c) => data[c] ?? null)
+  );
+  return getBoard(r.rows[0].id);
 }
-export function updateBoard(id, data) {
-  ensure();
+export async function updateBoard(id, data) {
   const cols = ['slug','name','type','description','read_role','write_role','comments_enabled','position','visible'];
   const present = cols.filter((c) => data[c] !== undefined);
   if (!present.length) return getBoard(id);
-  const sets = present.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(`UPDATE boards SET ${sets} WHERE id = ?`)
-    .run(...present.map((c) => data[c]), id);
+  const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE boards SET ${sets} WHERE id = $${present.length + 1}`,
+    [...present.map((c) => data[c]), id]
+  );
   return getBoard(id);
 }
-export function deleteBoard(id) {
-  ensure();
-  // 시스템 보드 보호
-  const b = getBoard(id);
+export async function deleteBoard(id) {
+  const b = await getBoard(id);
   if (b?.is_system) throw new Error('시스템 보드는 삭제할 수 없어요');
-  return getDb().prepare('DELETE FROM boards WHERE id = ?').run(id);
+  return execute('DELETE FROM boards WHERE id = $1', [id]);
 }
-export function moveBoard(id, dir) {
-  ensure();
-  const all = listBoards();
+export async function moveBoard(id, dir) {
+  const all = await listBoards();
   const idx = all.findIndex((b) => b.id === id);
   if (idx < 0) return null;
   const swap = dir === 'up' ? all[idx - 1] : all[idx + 1];
   if (!swap) return null;
   const me = all[idx];
-  // 두 보드의 position 값을 교환
-  getDb().prepare('UPDATE boards SET position = ? WHERE id = ?').run(swap.position, me.id);
-  getDb().prepare('UPDATE boards SET position = ? WHERE id = ?').run(me.position, swap.id);
+  await execute('UPDATE boards SET position = $1 WHERE id = $2', [swap.position, me.id]);
+  await execute('UPDATE boards SET position = $1 WHERE id = $2', [me.position, swap.id]);
   return true;
 }
 
 /* ========== Board Writers (개별 글쓰기 권한) ========== */
-export function listBoardWriters(boardId) {
-  ensure();
-  return toPlainArr(getDb().prepare(`
+export async function listBoardWriters(boardId) {
+  return query(`
     SELECT bw.user_id, u.name, u.email
     FROM board_writers bw JOIN users u ON u.id = bw.user_id
-    WHERE bw.board_id = ?
+    WHERE bw.board_id = $1
     ORDER BY u.name
-  `).all(boardId));
+  `, [boardId]);
 }
-export function addBoardWriter(boardId, userId) {
-  ensure();
-  getDb().prepare('INSERT OR IGNORE INTO board_writers (board_id, user_id) VALUES (?, ?)').run(boardId, userId);
+export async function addBoardWriter(boardId, userId) {
+  await execute('INSERT INTO board_writers (board_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [boardId, userId]);
 }
-export function removeBoardWriter(boardId, userId) {
-  ensure();
-  getDb().prepare('DELETE FROM board_writers WHERE board_id = ? AND user_id = ?').run(boardId, userId);
+export async function removeBoardWriter(boardId, userId) {
+  await execute('DELETE FROM board_writers WHERE board_id = $1 AND user_id = $2', [boardId, userId]);
 }
-export function isBoardWriter(boardId, userId) {
-  ensure();
+export async function isBoardWriter(boardId, userId) {
   if (!boardId || !userId) return false;
-  return !!getDb().prepare('SELECT 1 FROM board_writers WHERE board_id = ? AND user_id = ?').get(boardId, userId);
+  const r = await queryOne('SELECT 1 FROM board_writers WHERE board_id = $1 AND user_id = $2', [boardId, userId]);
+  return !!r;
 }
 
 /* ========== Posts ========== */
-export function listPosts(boardId) {
-  ensure();
-  return toPlainArr(getDb().prepare(`
+export async function listPosts(boardId) {
+  return query(`
     SELECT p.*, u.name AS author_name
     FROM posts p LEFT JOIN users u ON u.id = p.author_id
-    WHERE p.board_id = ?
+    WHERE p.board_id = $1
     ORDER BY p.pinned DESC, p.created_at DESC
-  `).all(boardId));
+  `, [boardId]);
 }
-export function getPost(id) {
-  ensure();
-  const row = getDb().prepare(`
+export async function getPost(id) {
+  return queryOne(`
     SELECT p.*, u.name AS author_name, b.slug AS board_slug, b.name AS board_name, b.type AS board_type, b.comments_enabled
     FROM posts p
     LEFT JOIN users u ON u.id = p.author_id
     LEFT JOIN boards b ON b.id = p.board_id
-    WHERE p.id = ?
-  `).get(id);
-  return toPlain(row);
+    WHERE p.id = $1
+  `, [id]);
 }
-export function createPost(data) {
-  ensure();
+export async function createPost(data) {
   const cols = ['board_id','title','body','meta','author_id','pinned'];
-  const r = getDb().prepare(`INSERT INTO posts (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`)
-    .run(...cols.map((c) => data[c] ?? (c === 'pinned' ? 0 : null)));
-  return getPost(Number(r.lastInsertRowid));
+  const vals = cols.map((c) => data[c] ?? (c === 'pinned' ? 0 : null));
+  const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+  const r = await execute(
+    `INSERT INTO posts (${cols.join(',')}) VALUES (${ph}) RETURNING id`,
+    vals
+  );
+  return getPost(r.rows[0].id);
 }
-export function updatePost(id, data) {
-  ensure();
+export async function updatePost(id, data) {
   const cols = ['title','body','meta','pinned'];
   const present = cols.filter((c) => data[c] !== undefined);
   if (!present.length) return getPost(id);
-  const sets = present.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(`UPDATE posts SET ${sets}, updated_at = datetime('now','localtime') WHERE id = ?`)
-    .run(...present.map((c) => data[c]), id);
+  const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE posts SET ${sets}, updated_at = NOW() WHERE id = $${present.length + 1}`,
+    [...present.map((c) => data[c]), id]
+  );
   return getPost(id);
 }
-export function deletePost(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM posts WHERE id = ?').run(id);
+export async function deletePost(id) {
+  return execute('DELETE FROM posts WHERE id = $1', [id]);
 }
 
-/* ========== 가족 구성원 (CLAUDE.md 1-A) ========== */
-export function listFamilyMembers(parentUserId) {
-  ensure();
-  return toPlainArr(getDb().prepare(`
-    SELECT * FROM family_members WHERE parent_user_id = ?
+/* ========== 가족 구성원 ========== */
+export async function listFamilyMembers(parentUserId) {
+  return query(`
+    SELECT * FROM family_members WHERE parent_user_id = $1
     ORDER BY position ASC, id ASC
-  `).all(parentUserId));
+  `, [parentUserId]);
 }
-export function getFamilyMember(id) {
-  ensure();
-  return toPlain(getDb().prepare('SELECT * FROM family_members WHERE id = ?').get(id));
+export async function getFamilyMember(id) {
+  return queryOne('SELECT * FROM family_members WHERE id = $1', [id]);
 }
-export function createFamilyMember(parentUserId, data) {
-  ensure();
-  // position은 마지막 + 1
-  const max = getDb().prepare('SELECT MAX(position) AS m FROM family_members WHERE parent_user_id = ?')
-    .get(parentUserId)?.m ?? -1;
-  const r = getDb().prepare(
-    'INSERT INTO family_members (parent_user_id, name, type, age, position) VALUES (?, ?, ?, ?, ?)'
-  ).run(parentUserId, data.name, data.type || '자녀', data.age ?? null, max + 1);
-  return getFamilyMember(Number(r.lastInsertRowid));
+export async function createFamilyMember(parentUserId, data) {
+  const max = (await queryOne(
+    'SELECT MAX(position) AS m FROM family_members WHERE parent_user_id = $1',
+    [parentUserId]
+  ))?.m ?? -1;
+  const r = await execute(
+    'INSERT INTO family_members (parent_user_id, name, type, age, position) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [parentUserId, data.name, data.type || '자녀', data.age ?? null, max + 1]
+  );
+  return getFamilyMember(r.rows[0].id);
 }
-export function updateFamilyMember(id, data) {
-  ensure();
+export async function updateFamilyMember(id, data) {
   const cols = ['name', 'type', 'age', 'position'];
   const present = cols.filter((c) => data[c] !== undefined);
   if (!present.length) return getFamilyMember(id);
-  const sets = present.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(`UPDATE family_members SET ${sets} WHERE id = ?`)
-    .run(...present.map((c) => data[c]), id);
+  const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE family_members SET ${sets} WHERE id = $${present.length + 1}`,
+    [...present.map((c) => data[c]), id]
+  );
   return getFamilyMember(id);
 }
-export function deleteFamilyMember(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM family_members WHERE id = ?').run(id);
+export async function deleteFamilyMember(id) {
+  return execute('DELETE FROM family_members WHERE id = $1', [id]);
 }
 
-/* ========== Sessions (CLAUDE.md 1-A) ========== */
-export function listSessions(eventId) {
-  ensure();
-  return toPlainArr(getDb().prepare(
-    'SELECT * FROM event_sessions WHERE event_id = ? ORDER BY position ASC, id ASC'
-  ).all(eventId));
+/* ========== Sessions (모임 안의 시간대별 세션) ========== */
+export async function listSessions(eventId) {
+  return query(
+    'SELECT * FROM event_sessions WHERE event_id = $1 ORDER BY position ASC, id ASC',
+    [eventId]
+  );
 }
-export function getSession(id) {
-  ensure();
-  return toPlain(getDb().prepare('SELECT * FROM event_sessions WHERE id = ?').get(id));
+export async function getSession(id) {
+  return queryOne('SELECT * FROM event_sessions WHERE id = $1', [id]);
 }
-export function createSession(eventId, data) {
-  ensure();
-  const max = getDb().prepare('SELECT MAX(position) AS m FROM event_sessions WHERE event_id = ?').get(eventId)?.m ?? -1;
+export async function createSession(eventId, data) {
+  const max = (await queryOne(
+    'SELECT MAX(position) AS m FROM event_sessions WHERE event_id = $1',
+    [eventId]
+  ))?.m ?? -1;
   const cols = ['event_id','name','start_time','end_time','capacity','notes','position'];
-  const r = getDb().prepare(`INSERT INTO event_sessions (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`)
-    .run(eventId, data.name, data.start_time || null, data.end_time || null, data.capacity ?? null, data.notes || null, (max + 10));
-  return getSession(Number(r.lastInsertRowid));
+  const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+  const r = await execute(
+    `INSERT INTO event_sessions (${cols.join(',')}) VALUES (${ph}) RETURNING id`,
+    [eventId, data.name, data.start_time || null, data.end_time || null, data.capacity ?? null, data.notes || null, max + 10]
+  );
+  return getSession(r.rows[0].id);
 }
-export function updateSession(id, data) {
-  ensure();
+export async function updateSession(id, data) {
   const cols = ['name','start_time','end_time','capacity','notes','position'];
   const present = cols.filter((c) => data[c] !== undefined);
   if (!present.length) return getSession(id);
-  const sets = present.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(`UPDATE event_sessions SET ${sets} WHERE id = ?`)
-    .run(...present.map((c) => data[c]), id);
+  const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE event_sessions SET ${sets} WHERE id = $${present.length + 1}`,
+    [...present.map((c) => data[c]), id]
+  );
   return getSession(id);
 }
-export function deleteSession(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM event_sessions WHERE id = ?').run(id);
+export async function deleteSession(id) {
+  return execute('DELETE FROM event_sessions WHERE id = $1', [id]);
 }
 
-/**
- * 일정에 세션이 하나도 없으면 "전체 모임" 단일 세션을 자동 생성.
- * 모든 일정을 가족×세션 그리드로 통일하기 위한 호환 헬퍼.
- */
-export function ensureEventHasSession(eventId) {
-  ensure();
-  const db = getDb();
-  const cnt = db.prepare('SELECT COUNT(*) AS n FROM event_sessions WHERE event_id = ?').get(eventId)?.n ?? 0;
+/** 일정에 세션이 없으면 "전체 모임" 단일 세션 자동 생성 */
+export async function ensureEventHasSession(eventId) {
+  const cnt = (await queryOne(
+    'SELECT COUNT(*)::int AS n FROM event_sessions WHERE event_id = $1',
+    [eventId]
+  ))?.n ?? 0;
   if (cnt > 0) return;
-  const ev = getEvent(eventId);
+  const ev = await getEvent(eventId);
   if (!ev) return;
-  db.prepare(
+  await execute(
     `INSERT INTO event_sessions (event_id, name, start_time, end_time, capacity, notes, position)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(eventId, '전체 모임', ev.start_time || null, ev.end_time || null, null, null, 10);
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [eventId, '전체 모임', ev.start_time || null, ev.end_time || null, null, null, 10]
+  );
 }
 
 /* ========== 세션 출석 (가족×세션 매트릭스) ========== */
-export function setSessionAttendance(sessionId, familyMemberId, status) {
-  ensure();
+export async function setSessionAttendance(sessionId, familyMemberId, status) {
   if (!status) {
-    getDb().prepare('DELETE FROM session_attendances WHERE session_id = ? AND family_member_id = ?')
-      .run(sessionId, familyMemberId);
+    await execute(
+      'DELETE FROM session_attendances WHERE session_id = $1 AND family_member_id = $2',
+      [sessionId, familyMemberId]
+    );
     return null;
   }
-  getDb().prepare(`
+  await execute(`
     INSERT INTO session_attendances (session_id, family_member_id, status, updated_at)
-    VALUES (?, ?, ?, datetime('now','localtime'))
+    VALUES ($1, $2, $3, NOW())
     ON CONFLICT(session_id, family_member_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
-  `).run(sessionId, familyMemberId, status);
+  `, [sessionId, familyMemberId, status]);
   return { sessionId, familyMemberId, status };
 }
 
-/** 한 일정에 대한 모든 회원 가족의 세션별 출석 (실시간 명단/통계용) */
-export function listEventSessionAttendances(eventId) {
-  ensure();
-  return toPlainArr(getDb().prepare(`
+export async function listEventSessionAttendances(eventId) {
+  return query(`
     SELECT sa.session_id, sa.family_member_id, sa.status,
            fm.name AS member_name, fm.type AS member_type, fm.age,
            u.id AS parent_user_id, u.name AS parent_name
@@ -456,23 +427,21 @@ export function listEventSessionAttendances(eventId) {
     JOIN event_sessions s ON s.id = sa.session_id
     JOIN family_members fm ON fm.id = sa.family_member_id
     JOIN users u ON u.id = fm.parent_user_id
-    WHERE s.event_id = ?
-  `).all(eventId));
+    WHERE s.event_id = $1
+  `, [eventId]);
 }
 
-/** 내 가족(부모user_id 기준)의 특정 일정 세션 출석 — 그리드 초기 상태용 */
-export function myFamilySessionStatus(eventId, parentUserId) {
-  ensure();
-  return toPlainArr(getDb().prepare(`
+export async function myFamilySessionStatus(eventId, parentUserId) {
+  return query(`
     SELECT sa.session_id, sa.family_member_id, sa.status
     FROM session_attendances sa
     JOIN family_members fm ON fm.id = sa.family_member_id
     JOIN event_sessions s ON s.id = sa.session_id
-    WHERE s.event_id = ? AND fm.parent_user_id = ?
-  `).all(eventId, parentUserId));
+    WHERE s.event_id = $1 AND fm.parent_user_id = $2
+  `, [eventId, parentUserId]);
 }
 
-/* ========== 활동 포트폴리오 (CLAUDE.md 2-B) ========== */
+/* ========== 활동 포트폴리오 ========== */
 const PORTFOLIO_CATEGORIES = ['adult', 'kids', 'math', 'play'];
 const PORTFOLIO_SEED = {
   adult: [
@@ -501,95 +470,96 @@ const PORTFOLIO_SEED = {
   ],
 };
 
-function ensurePortfolioSeed() {
-  const db = getDb();
-  const n = db.prepare('SELECT COUNT(*) AS n FROM portfolio_items').get()?.n ?? 0;
+async function ensurePortfolioSeed() {
+  const n = (await queryOne('SELECT COUNT(*)::int AS n FROM portfolio_items'))?.n ?? 0;
   if (n > 0) return;
-  const ins = db.prepare(
-    'INSERT INTO portfolio_items (category, title, body, tag, position) VALUES (?, ?, ?, ?, ?)'
-  );
   for (const cat of PORTFOLIO_CATEGORIES) {
-    (PORTFOLIO_SEED[cat] || []).forEach((it, i) => {
-      ins.run(cat, it.title, it.body || null, it.tag || null, (i + 1) * 10);
-    });
+    const items = PORTFOLIO_SEED[cat] || [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      await execute(
+        'INSERT INTO portfolio_items (category, title, body, tag, position) VALUES ($1, $2, $3, $4, $5)',
+        [cat, it.title, it.body || null, it.tag || null, (i + 1) * 10]
+      );
+    }
   }
 }
 
-export function listPortfolioItems({ visibleOnly = false, category } = {}) {
-  ensure();
-  ensurePortfolioSeed();
+export async function listPortfolioItems({ visibleOnly = false, category } = {}) {
+  await ensurePortfolioSeed();
   const conds = [];
   const args = [];
   if (visibleOnly) conds.push('visible = 1');
-  if (category) { conds.push('category = ?'); args.push(category); }
+  if (category) { args.push(category); conds.push(`category = $${args.length}`); }
   const where = conds.length ? ` WHERE ${conds.join(' AND ')}` : '';
-  return toPlainArr(getDb().prepare(
-    `SELECT * FROM portfolio_items${where} ORDER BY category ASC, position ASC, id ASC`
-  ).all(...args));
-}
-export function getPortfolioItem(id) {
-  ensure();
-  return toPlain(getDb().prepare('SELECT * FROM portfolio_items WHERE id = ?').get(id));
-}
-export function createPortfolioItem(data) {
-  ensure();
-  const cat = PORTFOLIO_CATEGORIES.includes(data.category) ? data.category : 'adult';
-  const max = getDb().prepare(
-    'SELECT MAX(position) AS m FROM portfolio_items WHERE category = ?'
-  ).get(cat)?.m ?? 0;
-  const r = getDb().prepare(
-    `INSERT INTO portfolio_items (category, title, body, tag, image_url, position, visible)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    cat,
-    data.title,
-    data.body ?? null,
-    data.tag ?? null,
-    data.image_url ?? null,
-    (max + 10),
-    data.visible === 0 ? 0 : 1
+  return query(
+    `SELECT * FROM portfolio_items${where} ORDER BY category ASC, position ASC, id ASC`,
+    args
   );
-  return getPortfolioItem(Number(r.lastInsertRowid));
 }
-export function updatePortfolioItem(id, data) {
-  ensure();
+export async function getPortfolioItem(id) {
+  return queryOne('SELECT * FROM portfolio_items WHERE id = $1', [id]);
+}
+export async function createPortfolioItem(data) {
+  const cat = PORTFOLIO_CATEGORIES.includes(data.category) ? data.category : 'adult';
+  const max = (await queryOne(
+    'SELECT MAX(position) AS m FROM portfolio_items WHERE category = $1',
+    [cat]
+  ))?.m ?? 0;
+  const r = await execute(
+    `INSERT INTO portfolio_items (category, title, body, tag, image_url, position, visible)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [
+      cat,
+      data.title,
+      data.body ?? null,
+      data.tag ?? null,
+      data.image_url ?? null,
+      max + 10,
+      data.visible === 0 ? 0 : 1,
+    ]
+  );
+  return getPortfolioItem(r.rows[0].id);
+}
+export async function updatePortfolioItem(id, data) {
   const cols = ['category', 'title', 'body', 'tag', 'image_url', 'position', 'visible'];
   const present = cols.filter((c) => data[c] !== undefined);
   if (!present.length) return getPortfolioItem(id);
-  const sets = present.map((c) => `${c} = ?`).join(', ');
-  getDb().prepare(
-    `UPDATE portfolio_items SET ${sets}, updated_at = datetime('now','localtime') WHERE id = ?`
-  ).run(...present.map((c) => data[c]), id);
+  const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE portfolio_items SET ${sets}, updated_at = NOW() WHERE id = $${present.length + 1}`,
+    [...present.map((c) => data[c]), id]
+  );
   return getPortfolioItem(id);
 }
-export function deletePortfolioItem(id) {
-  ensure();
-  return getDb().prepare('DELETE FROM portfolio_items WHERE id = ?').run(id);
+export async function deletePortfolioItem(id) {
+  return execute('DELETE FROM portfolio_items WHERE id = $1', [id]);
 }
-export function movePortfolioItem(id, dir) {
-  ensure();
-  const me = getPortfolioItem(id);
+export async function movePortfolioItem(id, dir) {
+  const me = await getPortfolioItem(id);
   if (!me) return null;
-  const sibs = toPlainArr(getDb().prepare(
-    'SELECT * FROM portfolio_items WHERE category = ? ORDER BY position ASC, id ASC'
-  ).all(me.category));
+  const sibs = await query(
+    'SELECT * FROM portfolio_items WHERE category = $1 ORDER BY position ASC, id ASC',
+    [me.category]
+  );
   const idx = sibs.findIndex((s) => s.id === id);
   const swap = dir === 'up' ? sibs[idx - 1] : sibs[idx + 1];
   if (!swap) return null;
-  getDb().prepare('UPDATE portfolio_items SET position = ? WHERE id = ?').run(swap.position, me.id);
-  getDb().prepare('UPDATE portfolio_items SET position = ? WHERE id = ?').run(me.position, swap.id);
+  await execute('UPDATE portfolio_items SET position = $1 WHERE id = $2', [swap.position, me.id]);
+  await execute('UPDATE portfolio_items SET position = $1 WHERE id = $2', [me.position, swap.id]);
   return true;
 }
 
-/* ========== Public RSVP (외부인 신청) ========== */
-export function createPublicRsvp(data) {
-  ensure();
+/* ========== Public RSVP ========== */
+export async function createPublicRsvp(data) {
   const cols = ['event_id','name','email','phone','party_size','note'];
-  const r = getDb().prepare(`INSERT INTO public_rsvps (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`)
-    .run(...cols.map((c) => data[c] ?? null));
-  return Number(r.lastInsertRowid);
+  const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+  const r = await execute(
+    `INSERT INTO public_rsvps (${cols.join(',')}) VALUES (${ph}) RETURNING id`,
+    cols.map((c) => data[c] ?? null)
+  );
+  return r.rows[0].id;
 }
-export function listPublicRsvps(eventId) {
-  ensure();
-  return toPlainArr(getDb().prepare('SELECT * FROM public_rsvps WHERE event_id = ? ORDER BY created_at DESC').all(eventId));
+export async function listPublicRsvps(eventId) {
+  return query('SELECT * FROM public_rsvps WHERE event_id = $1 ORDER BY created_at DESC', [eventId]);
 }

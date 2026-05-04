@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireMember } from '@/lib/auth.js';
-import { createComment, getComment } from '@/lib/queries.js';
-import { getDb } from '@/lib/db.js';
+import { createComment } from '@/lib/queries.js';
+import { queryOne } from '@/lib/db.js';
 
 export async function POST(req) {
-  const me = requireMember();
+  const me = await requireMember();
   if (!me) return NextResponse.json({ error: '회원 로그인이 필요해요' }, { status: 401 });
   const data = await req.json();
   const targetType = data.target_type;
@@ -18,12 +18,11 @@ export async function POST(req) {
   if (body.length > 2000) return NextResponse.json({ error: '댓글이 너무 길어요 (최대 2,000자)' }, { status: 400 });
 
   const parentId = data.parent_id ? parseInt(data.parent_id, 10) : null;
-  const id = createComment({ targetType, targetId, userId: me.id, body, parentId });
-  // 새로 만든 댓글에 user_name 합쳐서 반환
-  const row = getDb().prepare(`
+  const id = await createComment({ targetType, targetId, userId: me.id, body, parentId });
+  const row = await queryOne(`
     SELECT c.id, c.body, c.created_at, c.user_id, c.parent_id, u.name AS user_name, u.role_level
     FROM comments c LEFT JOIN users u ON u.id = c.user_id
-    WHERE c.id = ?
-  `).get(id);
-  return NextResponse.json({ ok: true, comment: { ...row } });
+    WHERE c.id = $1
+  `, [id]);
+  return NextResponse.json({ ok: true, comment: row });
 }

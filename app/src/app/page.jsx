@@ -2,17 +2,17 @@ import Link from 'next/link';
 import { listEvents, getCmsBlocks } from '@/lib/queries.js';
 import MiniCalendar from '@/components/MiniCalendar.jsx';
 
-export default function HomePage() {
-  const cms = getCmsBlocks();
+export default async function HomePage() {
+  const cms = await getCmsBlocks();
   // 관리자가 "랜딩 노출"로 표시한 일정 우선. 없으면 가장 가까운 일정 자동 선택.
-  const featured = listEvents({ featuredOnly: true });
-  const fallback = listEvents({ publicOnly: true })
+  const featured = await listEvents({ featuredOnly: true });
+  const fallback = (await listEvents({ publicOnly: true }))
     .filter((e) => new Date(e.start_date) >= new Date('2026-05-01'))
     .slice(0, 1);
   const heroEvents = featured.length ? featured : fallback;
 
   // 캘린더 위젯에 보여줄 일정: 비회원에게 노출되는 일정만
-  const calendarEvents = listEvents({ publicOnly: true });
+  const calendarEvents = await listEvents({ publicOnly: true });
 
   // 한 달은 첫 추천 행사 또는 오늘 기준
   const initialMonth = heroEvents[0]?.start_date || '2026-05-01';

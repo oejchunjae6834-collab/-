@@ -17,14 +17,14 @@ function hrefFor(b) {
   return SLUG_HREF[b.slug] || `/board/${b.slug}`;
 }
 
-export default function Nav() {
-  const user = getCurrentUser();
+export default async function Nav() {
+  const user = await getCurrentUser();
   const isMember = user && user.role_level >= ROLES.MEMBER;
   const isAdmin = user && user.role_level >= ROLES.ADMIN;
   const isPending = user && user.role_level === ROLES.PENDING;
   const role = user?.role_level ?? ROLES.GUEST;
 
-  const boards = listBoards({ visibleOnly: true })
+  const boards = (await listBoards({ visibleOnly: true }))
     .filter((b) => b.read_role <= role);
 
   return (

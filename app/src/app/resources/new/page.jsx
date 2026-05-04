@@ -5,10 +5,11 @@ import NewPostForm from '@/components/NewPostForm.jsx';
 
 export const metadata = { title: '자료 올리기 — 디적디적' };
 
-export default function NewResource() {
-  const me = getCurrentUser();
-  const board = getBoard('resources');
-  if (!canWriteBoard(board, me, isBoardWriter)) redirect('/resources');
+export default async function NewResource() {
+  const me = await getCurrentUser();
+  const board = await getBoard('resources');
+  const isWriter = me ? await isBoardWriter(board.id, me.id) : false;
+  if (!canWriteBoard(board, me, isWriter)) redirect('/resources');
 
   return (
     <main className="layout single">

@@ -3,8 +3,8 @@ import PortfolioTabs from './tabs.jsx';
 
 export const metadata = { title: '활동 — 디적디적' };
 
-export default function PortfolioPage() {
-  const items = listPortfolioItems({ visibleOnly: true });
+export default async function PortfolioPage() {
+  const items = await listPortfolioItems({ visibleOnly: true });
   return (
     <main className="layout single">
       <div className="content">

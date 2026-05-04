@@ -1,20 +1,19 @@
-# Render Blueprint — 디적디적 홈페이지 자동 배포 설정
-# 사용법: GitHub 저장소를 Render에 연결하면 이 파일을 읽고 자동 생성합니다.
-# 또는 https://dashboard.render.com/blueprints 에서 "New Blueprint Instance" 로 등록.
+# Render Blueprint — 디적디적 홈페이지 무료 배포 설정
+# 사용법: GitHub 저장소를 Render에 연결하면 이 파일을 자동 인식합니다.
 #
-# 비용 예시 (2026 기준):
-#   - Web Service "starter" : $7/월   (free 플랜은 15분 idle 후 sleep → 첫 요청 30초 지연)
-#   - Disk 1GB              : $0.25/월
-#   합계 ≈ $7.25/월
+# 비용:
+#   - Web Service "free" : $0  (15분 idle 후 sleep, 첫 요청 ~30초 지연)
+#   - Disk 없음 (DB와 사진은 Supabase에 저장)
+#   합계: $0 (도메인 안 사면 완전 무료)
 
 services:
   - type: web
     name: dijeokdijeok
     runtime: node
-    plan: starter            # free 사용 가능하나 sleep + Disk 미지원이라 starter 권장
-    rootDir: app             # 저장소에서 Next.js 앱이 들어 있는 폴더
-    buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
+    plan: free
+    rootDir: app
+    buildCommand: npm install && npm run build && npm run db:migrate
+    startCommand: npm run start
     autoDeploy: true
     healthCheckPath: /
     envVars:
@@ -22,19 +21,19 @@ services:
         value: 22.11.0
       - key: NODE_ENV
         value: production
-      - key: DB_PATH
-        value: /var/data/dijeokdijeok.db
-      - key: UPLOAD_DIR
-        value: /var/data/uploads
       - key: SESSION_SECRET
         generateValue: true              # Render가 랜덤 시크릿 자동 생성
-      - key: NEXT_PUBLIC_BASE_URL
-        sync: false                       # 대시보드에서 수동 입력 (실제 도메인)
-      - key: EMAIL_FROM
-        sync: false                       # 예: "디적디적 <noreply@yourdomain.com>"
-      - key: RESEND_API_KEY
-        sync: false                       # Resend 가입 후 API 키 입력 (없으면 콘솔 폴백)
-    disk:
-      name: dijeokdijeok-data
-      mountPath: /var/data                # SQLite + 업로드 사진 영구 저장
-      sizeGB: 1
+      # ─── Supabase ────────────────────────────────────────────────
+      - key: DATABASE_URL                  # Settings → Database → Connection string (Transaction pooler URI)
+        sync: false
+      - key: SUPABASE_URL                  # Settings → API → Project URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY     # Settings → API → service_role key
+        sync: false
+      # ─── 도메인 / 메일 ──────────────────────────────────────────
+      - key: NEXT_PUBLIC_BASE_URL          # 배포 후 Render가 준 URL (또는 커스텀 도메인)
+        sync: false
+      - key: EMAIL_FROM                    # "디적디적 <noreply@yourdomain.com>" 또는 "onboarding@resend.dev"
+        sync: false
+      - key: RESEND_API_KEY                # 비워두면 매직링크가 Render 로그에만 출력됨
+        sync: false

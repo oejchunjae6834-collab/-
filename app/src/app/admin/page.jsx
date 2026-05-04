@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { listUsers, listEvents, listArchive } from '@/lib/queries.js';
 
-export default function AdminDashboard() {
-  const users = listUsers();
+export default async function AdminDashboard() {
+  const users = await listUsers();
   const pending = users.filter((u) => u.is_approved === 0);
   const members = users.filter((u) => u.role_level >= 2);
-  const events = listEvents();
+  const events = await listEvents();
   const upcomingCount = events.filter((e) => new Date(e.start_date) >= new Date()).length;
-  const docs = listArchive();
+  const docs = await listArchive();
 
   return (
     <>

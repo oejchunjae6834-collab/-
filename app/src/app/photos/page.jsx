@@ -6,14 +6,15 @@ import { GalleryGrid } from '@/components/BoardLayouts.jsx';
 
 export const metadata = { title: '사진첩 — 디적디적' };
 
-export default function PhotosPage() {
-  const me = getCurrentUser();
-  const board = getBoard('photos');
+export default async function PhotosPage() {
+  const me = await getCurrentUser();
+  const board = await getBoard('photos');
   if (!board) redirect('/');
   if (!canReadBoard(board, me)) redirect('/login');
 
-  const posts = listPosts(board.id);
-  const canWrite = canWriteBoard(board, me, isBoardWriter);
+  const posts = await listPosts(board.id);
+  const isWriter = me ? await isBoardWriter(board.id, me.id) : false;
+  const canWrite = canWriteBoard(board, me, isWriter);
 
   return (
     <main className="layout single">

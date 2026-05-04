@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth.js';
 
-export default function AdminLayout({ children }) {
-  const me = requireAdmin();
+export default async function AdminLayout({ children }) {
+  const me = await requireAdmin();
   if (!me) redirect('/login');
 
   return (

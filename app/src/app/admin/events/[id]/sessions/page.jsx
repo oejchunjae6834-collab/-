@@ -5,13 +5,13 @@ import SessionsAdmin from './client.jsx';
 
 export const metadata = { title: '세션 관리 — 디적디적 관리자' };
 
-export default function SessionsAdminPage({ params }) {
+export default async function SessionsAdminPage({ params }) {
   const eventId = parseInt(params.id, 10);
-  const event = getEvent(eventId);
+  const event = await getEvent(eventId);
   if (!event) redirect('/admin/events');
 
-  const sessions = listSessions(eventId);
-  const all = listEventSessionAttendances(eventId);
+  const sessions = await listSessions(eventId);
+  const all = await listEventSessionAttendances(eventId);
   // 세션별 합계
   const totals = {};
   for (const s of sessions) totals[s.id] = { going: 0, no: 0, maybe: 0 };
