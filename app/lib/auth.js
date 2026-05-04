@@ -221,13 +221,24 @@ function getBaseFromHeaders(source) {
   return `${proto}://${host}`;
 }
 
+function getRenderBaseUrl() {
+  if (process.env.RENDER_EXTERNAL_URL) return cleanBaseUrl(process.env.RENDER_EXTERNAL_URL);
+  if (process.env.RENDER_EXTERNAL_HOSTNAME) return `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
+  return null;
+}
+
 export function getSiteBase(requestOrHeaders) {
   const env = process.env.NEXT_PUBLIC_BASE_URL;
   const requestHeaders = requestOrHeaders?.headers || requestOrHeaders;
   const baseFromRequest = getBaseFromHeaders(requestHeaders);
+  const baseFromRender = getRenderBaseUrl();
 
   if (env) {
     const url = cleanBaseUrl(env);
+    if (isLocalBaseUrl(url) && baseFromRender) {
+      console.warn('[auth] getSiteBase: ignoring localhost NEXT_PUBLIC_BASE_URL because Render public URL is available');
+      return baseFromRender;
+    }
     if (isLocalBaseUrl(url) && baseFromRequest && !isLocalBaseUrl(baseFromRequest)) {
       console.warn('[auth] getSiteBase: ignoring localhost NEXT_PUBLIC_BASE_URL because request host is public');
       return baseFromRequest;
@@ -237,6 +248,11 @@ export function getSiteBase(requestOrHeaders) {
     }
     console.log('[auth] getSiteBase: NEXT_PUBLIC_BASE_URL =', url);
     return url;
+  }
+
+  if (baseFromRender) {
+    console.log('[auth] getSiteBase: Render public URL =', baseFromRender);
+    return baseFromRender;
   }
 
   if (baseFromRequest) {
