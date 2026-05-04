@@ -228,12 +228,12 @@ export function getSiteBase(requestOrHeaders) {
 
   if (env) {
     const url = cleanBaseUrl(env);
-    if (process.env.NODE_ENV === 'production' && isLocalBaseUrl(url)) {
-      if (baseFromRequest) {
-        console.warn('[auth] getSiteBase: ignoring localhost NEXT_PUBLIC_BASE_URL in production');
-        return baseFromRequest;
-      }
-      throw new Error('NEXT_PUBLIC_BASE_URL points to localhost in production.');
+    if (isLocalBaseUrl(url) && baseFromRequest && !isLocalBaseUrl(baseFromRequest)) {
+      console.warn('[auth] getSiteBase: ignoring localhost NEXT_PUBLIC_BASE_URL because request host is public');
+      return baseFromRequest;
+    }
+    if (process.env.NODE_ENV !== 'development' && isLocalBaseUrl(url)) {
+      throw new Error('NEXT_PUBLIC_BASE_URL points to localhost outside development.');
     }
     console.log('[auth] getSiteBase: NEXT_PUBLIC_BASE_URL =', url);
     return url;
