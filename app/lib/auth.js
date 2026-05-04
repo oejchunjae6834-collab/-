@@ -197,6 +197,16 @@ function cleanBaseUrl(value) {
   return value?.replace(/\/$/, '');
 }
 
+function isLocalBaseUrl(value) {
+  if (!value) return false;
+  try {
+    const { hostname } = new URL(value);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return value.includes('localhost') || value.includes('127.0.0.1');
+  }
+}
+
 function getHeaderValue(source, name) {
   if (!source) return null;
   if (typeof source.get === 'function') return source.get(name);
@@ -213,13 +223,22 @@ function getBaseFromHeaders(source) {
 
 export function getSiteBase(requestOrHeaders) {
   const env = process.env.NEXT_PUBLIC_BASE_URL;
+  const requestHeaders = requestOrHeaders?.headers || requestOrHeaders;
+  const baseFromRequest = getBaseFromHeaders(requestHeaders);
+
   if (env) {
     const url = cleanBaseUrl(env);
+    if (process.env.NODE_ENV === 'production' && isLocalBaseUrl(url)) {
+      if (baseFromRequest) {
+        console.warn('[auth] getSiteBase: ignoring localhost NEXT_PUBLIC_BASE_URL in production');
+        return baseFromRequest;
+      }
+      throw new Error('NEXT_PUBLIC_BASE_URL points to localhost in production.');
+    }
     console.log('[auth] getSiteBase: NEXT_PUBLIC_BASE_URL =', url);
     return url;
   }
-  const requestHeaders = requestOrHeaders?.headers || requestOrHeaders;
-  const baseFromRequest = getBaseFromHeaders(requestHeaders);
+
   if (baseFromRequest) {
     console.log('[auth] getSiteBase: request headers =', baseFromRequest);
     return baseFromRequest;
