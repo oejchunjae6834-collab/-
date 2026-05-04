@@ -8,11 +8,11 @@ const TYPE_LABEL = {
   image: '🖼 이미지',
 };
 
-export default function AboutAdmin({ initialSections, initialTitle }) {
+export default function AboutAdmin({ initialSections, initialCms }) {
   const router = useRouter();
   const [sections, setSections] = useState(initialSections);
-  const [title, setTitle] = useState(initialTitle);
-  const [titleSaved, setTitleSaved] = useState(false);
+  const [cms, setCms] = useState({ ...initialCms });
+  const [savedKey, setSavedKey] = useState(null);
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -27,17 +27,17 @@ export default function AboutAdmin({ initialSections, initialTitle }) {
     });
   }
 
-  async function saveTitle() {
+  async function saveCms(key) {
     setBusy(true);
     try {
-      const res = await fetch('/api/admin/cms/about.title', {
+      const res = await fetch(`/api/admin/cms/${encodeURIComponent(key)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: title }),
+        body: JSON.stringify({ value: cms[key] || '' }),
       });
-      if (!res.ok) { alert('제목 저장 실패'); return; }
-      setTitleSaved(true);
-      setTimeout(() => setTitleSaved(false), 1500);
+      if (!res.ok) { alert('저장 실패'); return; }
+      setSavedKey(key);
+      setTimeout(() => setSavedKey(null), 1500);
     } finally {
       setBusy(false);
     }
@@ -130,24 +130,84 @@ export default function AboutAdmin({ initialSections, initialTitle }) {
           <a href="/about" target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">↗ 공개 페이지 보기</a>
         </div>
         <p className="muted small">
-          상단의 <strong>큰 제목</strong>과, 그 아래 자유롭게 추가하는 <strong>블록(소제목 · 단락 · 이미지)</strong>으로 소개 페이지가 구성돼요.
-          블록 순서는 ↑↓ 버튼으로 바꾸세요.
+          페이지 구성: <strong>큰 제목</strong> → <strong>인트로 단락</strong> (또는 아래 블록들) → <strong>3개 요약 박스</strong>.
+          각 칸의 "저장" 버튼으로 즉시 반영돼요.
         </p>
 
         <div className="form-grid" style={{ marginTop: 12 }}>
-          <label className="full">
-            <span>큰 제목 (페이지 상단)</span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 디적디적은 어떤 모임인가요?"
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-              {titleSaved && <span className="muted small" style={{ alignSelf: 'center' }}>✅ 저장됨</span>}
-              <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={saveTitle}>제목 저장</button>
+          <CmsField
+            label="① 큰 제목 (페이지 상단)"
+            keyName="about.title"
+            cms={cms}
+            setCms={setCms}
+            onSave={saveCms}
+            busy={busy}
+            savedKey={savedKey}
+            placeholder="예: 디적디적은 어떤 모임인가요?"
+          />
+          <CmsField
+            label="② 인트로 단락 (블록을 안 만들었을 때 보이는 본문)"
+            keyName="about.body"
+            cms={cms}
+            setCms={setCms}
+            onSave={saveCms}
+            busy={busy}
+            savedKey={savedKey}
+            textarea
+            placeholder='예: 디적디적은 AI 시대를 함께 공부하는 가족 단위 학습 공동체예요...'
+          />
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="card-head">
+          <h3>3개 요약 박스</h3>
+          <span className="muted small">제목과 본문을 자유롭게 바꿀 수 있어요. 이모지는 비워두면 기본값이 표시돼요.</span>
+        </div>
+        <div className="form-grid">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="full" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12, marginBottom: 6 }}>
+              <strong style={{ display: 'block', marginBottom: 8 }}>박스 {n}</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 10 }}>
+                <CmsField
+                  label="이모지"
+                  keyName={`about.box${n}.emoji`}
+                  cms={cms}
+                  setCms={setCms}
+                  onSave={saveCms}
+                  busy={busy}
+                  savedKey={savedKey}
+                  placeholder={['👨‍👩‍👧', '🧩', '🗓️'][n - 1]}
+                  small
+                />
+                <CmsField
+                  label="제목"
+                  keyName={`about.box${n}.title`}
+                  cms={cms}
+                  setCms={setCms}
+                  onSave={saveCms}
+                  busy={busy}
+                  savedKey={savedKey}
+                  placeholder={['누가 모이나요', '무엇을 하나요', '어떻게 참여하나요'][n - 1]}
+                />
+              </div>
+              <CmsField
+                label="본문"
+                keyName={`about.box${n}.body`}
+                cms={cms}
+                setCms={setCms}
+                onSave={saveCms}
+                busy={busy}
+                savedKey={savedKey}
+                textarea
+                placeholder={[
+                  'AI 교육에 관심 있는 가족 단위 회원이 모여요...',
+                  '수학이랑 놀자 · 공동체 놀이 · 아이들 모여라 · 어른 공부 모임을 시간대별로 운영해요.',
+                  '공개 행사에 먼저 참관해 보시고, 마음에 드시면 회원 신청을 해주세요...',
+                ][n - 1]}
+              />
             </div>
-          </label>
+          ))}
         </div>
       </section>
 
@@ -226,6 +286,34 @@ export default function AboutAdmin({ initialSections, initialTitle }) {
         />
       )}
     </>
+  );
+}
+
+/** CMS 키 한 개를 인풋/텍스트영역으로 편집 + 즉시 저장하는 작은 헬퍼 */
+function CmsField({ label, keyName, cms, setCms, onSave, busy, savedKey, placeholder, textarea = false, small = false }) {
+  return (
+    <label className={small ? '' : 'full'}>
+      <span>{label}</span>
+      {textarea ? (
+        <textarea
+          rows={4}
+          value={cms[keyName] || ''}
+          onChange={(e) => setCms({ ...cms, [keyName]: e.target.value })}
+          placeholder={placeholder}
+        />
+      ) : (
+        <input
+          type="text"
+          value={cms[keyName] || ''}
+          onChange={(e) => setCms({ ...cms, [keyName]: e.target.value })}
+          placeholder={placeholder}
+        />
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+        {savedKey === keyName && <span className="muted small" style={{ alignSelf: 'center' }}>✅ 저장됨</span>}
+        <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onSave(keyName)}>저장</button>
+      </div>
+    </label>
   );
 }
 

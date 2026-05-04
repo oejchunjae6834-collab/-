@@ -2,9 +2,26 @@ import { getCmsBlocks, listAboutSections } from '@/lib/queries.js';
 
 export const metadata = { title: '소개 — 디적디적' };
 
+const BOX_DEFAULTS = [
+  { emoji: '👨‍👩‍👧', title: '누가 모이나요',     body: 'AI 교육에 관심 있는 가족 단위 회원이 모여요. 아이가 함께 와도, 어른만 와도 환영입니다.' },
+  { emoji: '🧩',     title: '무엇을 하나요',     body: '수학이랑 놀자 · 공동체 놀이 · 아이들 모여라 · 어른 공부 모임을 시간대별로 운영해요.' },
+  { emoji: '🗓️',    title: '어떻게 참여하나요', body: '공개 행사에 먼저 참관해 보시고, 마음에 드시면 회원 신청을 해주세요. 가족 단위 가입을 원칙으로 해요.' },
+];
+
 export default async function AboutPage() {
-  const cms = await getCmsBlocks(['about.title', 'about.body']);
+  const cms = await getCmsBlocks([
+    'about.title', 'about.body',
+    'about.box1.emoji', 'about.box1.title', 'about.box1.body',
+    'about.box2.emoji', 'about.box2.title', 'about.box2.body',
+    'about.box3.emoji', 'about.box3.title', 'about.box3.body',
+  ]);
   const sections = await listAboutSections({ visibleOnly: true });
+
+  const boxes = [1, 2, 3].map((n) => ({
+    emoji: cms[`about.box${n}.emoji`] || BOX_DEFAULTS[n - 1].emoji,
+    title: cms[`about.box${n}.title`] || BOX_DEFAULTS[n - 1].title,
+    body:  cms[`about.box${n}.body`]  || BOX_DEFAULTS[n - 1].body,
+  }));
 
   // 관리자가 새 about_sections를 만들기 시작하면 그걸 우선 표시.
   // 비어 있으면 기존 about.body(텍스트만)를 폴백으로 보여줌.
@@ -77,21 +94,13 @@ export default async function AboutPage() {
           )}
 
           <div className="three-col" style={{ marginTop: 24 }}>
-            <div className="mini">
-              <div className="mini-emoji">👨‍👩‍👧</div>
-              <h4>누가 모이나요</h4>
-              <p>AI 교육에 관심 있는 <strong>가족 단위</strong> 회원이 모여요. 아이가 함께 와도, 어른만 와도 환영입니다.</p>
-            </div>
-            <div className="mini">
-              <div className="mini-emoji">🧩</div>
-              <h4>무엇을 하나요</h4>
-              <p>수학이랑 놀자 · 공동체 놀이 · 아이들 모여라 · 어른 공부 모임을 시간대별로 운영해요.</p>
-            </div>
-            <div className="mini">
-              <div className="mini-emoji">🗓️</div>
-              <h4>어떻게 참여하나요</h4>
-              <p>공개 행사에 먼저 참관해 보시고, 마음에 드시면 회원 신청을 해주세요. 가족 단위 가입을 원칙으로 해요.</p>
-            </div>
+            {boxes.map((b, i) => (
+              <div className="mini" key={i}>
+                <div className="mini-emoji">{b.emoji}</div>
+                <h4>{b.title}</h4>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{b.body}</p>
+              </div>
+            ))}
           </div>
         </section>
 
