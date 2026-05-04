@@ -190,15 +190,39 @@ export function canWriteBoard(board, user, isWriterByGrant = false) {
 
 /**
  * 사이트의 외부 접근 URL을 반환.
- * 우선순위: NEXT_PUBLIC_BASE_URL > 현재 요청 헤더(x-forwarded-host/host) > localhost
+ * 우선순위: NEXT_PUBLIC_BASE_URL > 현재 요청 헤더(x-forwarded-host/host) > 개발 환경 localhost
  * Render·Vercel 등 프록시 환경에서도 자동 동작.
  */
-export function getSiteBase() {
+function cleanBaseUrl(value) {
+  return value?.replace(/\/$/, '');
+}
+
+function getHeaderValue(source, name) {
+  if (!source) return null;
+  if (typeof source.get === 'function') return source.get(name);
+  return source[name] || null;
+}
+
+function getBaseFromHeaders(source) {
+  const host = getHeaderValue(source, 'x-forwarded-host') || getHeaderValue(source, 'host');
+  if (!host) return null;
+
+  const proto = getHeaderValue(source, 'x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+
+export function getSiteBase(requestOrHeaders) {
   const env = process.env.NEXT_PUBLIC_BASE_URL;
   if (env) {
-    const url = env.replace(/\/$/, '');
+    const url = cleanBaseUrl(env);
     console.log('[auth] getSiteBase: NEXT_PUBLIC_BASE_URL =', url);
     return url;
+  }
+  const requestHeaders = requestOrHeaders?.headers || requestOrHeaders;
+  const baseFromRequest = getBaseFromHeaders(requestHeaders);
+  if (baseFromRequest) {
+    console.log('[auth] getSiteBase: request headers =', baseFromRequest);
+    return baseFromRequest;
   }
   try {
     const h = headers();
@@ -212,11 +236,17 @@ export function getSiteBase() {
   } catch (e) {
     console.log('[auth] getSiteBase: headers() 호출 불가 (request 컨텍스트 외부?):', e.message);
   }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Unable to determine public site URL. Set NEXT_PUBLIC_BASE_URL or call getSiteBase with a request.');
+  }
+
   console.log('[auth] getSiteBase: localhost로 폴백');
   return 'http://localhost:3000';
 }
 
 /** 매직링크 URL — Route Handler가 토큰 소비 + 리다이렉트 처리 */
-export function buildMagicUrl(token) {
-  return `${getSiteBase()}/api/auth/verify?token=${token}`;
+export function buildMagicUrl(token, requestOrHeaders) {
+  const url = new URL('/api/auth/verify', getSiteBase(requestOrHeaders));
+  url.searchParams.set('token', token);
+  return url.toString();
 }

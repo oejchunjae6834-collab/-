@@ -1,30 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createMagicLink } from '@/lib/auth.js';
+import { buildMagicUrl, createMagicLink } from '@/lib/auth.js';
 import { sendMagicLinkEmail } from '@/lib/email.js';
 import { cookies } from 'next/headers';
 import { queryOne } from '@/lib/db.js';
 
 const PENDING_KEY = 'dd_signup_pending';
-
-/**
- * 현재 요청에서 base URL을 추출합니다.
- * 우선순위: NEXT_PUBLIC_BASE_URL > 요청 헤더 > localhost
- */
-function getBaseUrlFromRequest(req) {
-  // 환경 변수 우선
-  if (process.env.NEXT_PUBLIC_BASE_URL) {
-    return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, '');
-  }
-  
-  // 요청 헤더에서 추출 (Render, Vercel 등 프록시 환경)
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
-  if (host) {
-    const proto = req.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-    return `${proto}://${host}`;
-  }
-  
-  return 'http://localhost:3000';
-}
 
 export async function POST(req) {
   try {
@@ -51,10 +31,9 @@ export async function POST(req) {
       motive: data.motive || '',
     }), { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 30 });
 
-    const baseUrl = getBaseUrlFromRequest(req);
-    const url = `${baseUrl}/api/auth/verify?token=${token}`;
+    const url = buildMagicUrl(token, req);
     console.log(`[signup] 매직링크 생성: ${url}`);
-    
+
     await sendMagicLinkEmail({ to: email, url, purpose: 'signup' });
     return NextResponse.json({ ok: true, devUrl: url });
   } catch (e) {
