@@ -1,16 +1,36 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { consumeMagicLink, getSiteBase } from '@/lib/auth.js';
+import { consumeMagicLink } from '@/lib/auth.js';
 
 const PENDING_KEY = 'dd_signup_pending';
+
+/**
+ * 현재 요청에서 base URL을 추출합니다.
+ * 우선순위: NEXT_PUBLIC_BASE_URL > 요청 헤더 > localhost
+ */
+function getBaseUrlFromRequest(req) {
+  // 환경 변수 우선
+  if (process.env.NEXT_PUBLIC_BASE_URL) {
+    return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, '');
+  }
+  
+  // 요청 헤더에서 추출 (Render, Vercel 등 프록시 환경)
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  if (host) {
+    const proto = req.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    return `${proto}://${host}`;
+  }
+  
+  return 'http://localhost:3000';
+}
 
 export async function GET(req) {
   const url = new URL(req.url);
   const token = url.searchParams.get('token');
   
   try {
-    const base = getSiteBase();
-    console.log(`[verify] 토큰 검증 시작. base=${base}`);
+    const base = getBaseUrlFromRequest(req);
+    console.log(`[verify] 토큰 검증 시작. base=${base}, token=${token?.slice(0, 8)}...`);
 
     if (!token) {
       console.log('[verify] 토큰 없음');
@@ -45,7 +65,7 @@ export async function GET(req) {
     return NextResponse.redirect(new URL('/calendar', base));
   } catch (e) {
     console.error('[verify] 예기치 않은 오류:', e);
-    const base = getSiteBase();
+    const base = getBaseUrlFromRequest(req);
     return NextResponse.redirect(new URL('/auth/error?reason=server_error', base));
   }
 }
