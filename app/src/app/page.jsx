@@ -11,8 +11,8 @@ export default async function HomePage() {
     .slice(0, 1);
   const heroEvents = featured.length ? featured : fallback;
 
-  // 캘린더 위젯에 보여줄 일정: 비회원에게 노출되는 일정만
-  const calendarEvents = await listEvents({ publicOnly: true });
+  // 캘린더 위젯에 보여줄 일정: 홈화면에서는 모든 일정을 보여 줍니다.
+  const calendarEvents = await listEvents();
 
   // 한 달은 첫 추천 행사 또는 오늘 기준
   const initialMonth = heroEvents[0]?.start_date || '2026-05-01';

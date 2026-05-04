@@ -98,13 +98,16 @@ export async function consumeMagicLink({ token, signupData }) {
     [sid, user.id, plusDays(SESSION_TTL_DAYS)]
   );
 
+  // 세션 쿠키 설정: 프로덕션(HTTPS) 또는 개발(localhost)에서 작동하도록 구성
+  const isProduction = process.env.NODE_ENV === 'production';
   cookies().set(SESSION_COOKIE, sid, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
     maxAge: SESSION_TTL_DAYS * 86400,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction, // HTTPS 환경에서만 secure=true
   });
+  console.log(`[auth] 세션 쿠키 설정: ${SESSION_COOKIE} (secure=${isProduction}, maxAge=${SESSION_TTL_DAYS * 86400}s)`);
 
   return { ok: true, user };
 }
@@ -192,17 +195,24 @@ export function canWriteBoard(board, user, isWriterByGrant = false) {
  */
 export function getSiteBase() {
   const env = process.env.NEXT_PUBLIC_BASE_URL;
-  if (env) return env.replace(/\/$/, '');
+  if (env) {
+    const url = env.replace(/\/$/, '');
+    console.log('[auth] getSiteBase: NEXT_PUBLIC_BASE_URL =', url);
+    return url;
+  }
   try {
     const h = headers();
     const host = h.get('x-forwarded-host') || h.get('host');
     if (host) {
       const proto = h.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-      return `${proto}://${host}`;
+      const url = `${proto}://${host}`;
+      console.log('[auth] getSiteBase: 요청 헤더에서 =', url);
+      return url;
     }
-  } catch {
-    // headers()는 request 컨텍스트 외부에서는 호출 불가
+  } catch (e) {
+    console.log('[auth] getSiteBase: headers() 호출 불가 (request 컨텍스트 외부?):', e.message);
   }
+  console.log('[auth] getSiteBase: localhost로 폴백');
   return 'http://localhost:3000';
 }
 

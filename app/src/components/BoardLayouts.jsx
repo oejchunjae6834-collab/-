@@ -17,7 +17,7 @@ export function GalleryGrid({ posts }) {
             )}
             <div className="gallery-meta">
               <strong>{p.title}</strong>
-              <small className="muted">{p.author_name || '익명'} · {p.created_at?.slice(0, 10)}</small>
+              <small className="muted">{p.author_name || '익명'} · {formatDate(p.created_at)}</small>
             </div>
           </Link>
         );
@@ -43,7 +43,7 @@ export function FileList({ posts }) {
               </h4>
               <p>{p.body}</p>
               <small className="muted">
-                {p.author_name || '익명'} · {p.created_at?.slice(0, 10)}
+                {p.author_name || '익명'} · {formatDate(p.created_at)}
                 {meta.file_name && <> · 📁 {meta.file_name}</>}
               </small>
             </div>
@@ -87,6 +87,14 @@ export function AssignmentList({ posts, today = '2026-05-03' }) {
       })}
     </div>
   );
+}
+
+function formatDate(value) {
+  if (!value && value !== 0) return '날짜 없음';
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const asString = String(value);
+  return asString.slice(0, 10);
 }
 
 function parseMeta(s) {

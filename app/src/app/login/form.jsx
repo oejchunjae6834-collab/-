@@ -1,10 +1,21 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const LOGIN_EMAIL_KEY = 'dijeok_login_email';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(LOGIN_EMAIL_KEY);
+    if (saved) setEmail(saved);
+  }, []);
+
+  useEffect(() => {
+    if (email) window.localStorage.setItem(LOGIN_EMAIL_KEY, email);
+  }, [email]);
 
   async function submit(e) {
     e.preventDefault();
@@ -41,6 +52,9 @@ export default function LoginForm() {
           placeholder="oej@dijeok.test (시드 계정 예시)"
         />
       </label>
+      <p className="muted small" style={{ marginTop: 4 }}>
+        입력한 이메일은 자동 저장되어 다음에 다시 로그인할 때 편리합니다.
+      </p>
       <div className="form-actions full">
         <button className="btn btn-primary" disabled={busy}>
           {busy ? '발송 중…' : '매직링크 받기'}

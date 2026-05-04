@@ -5,6 +5,14 @@ import { getPost, getBoard, isBoardWriter, listComments } from '@/lib/queries.js
 import CommentSection from '@/components/CommentSection.jsx';
 import PostActions from '@/components/PostActions.jsx';
 
+function formatDate(value) {
+  if (!value && value !== 0) return '날짜 없음';
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const asString = String(value);
+  return asString.slice(0, 10);
+}
+
 function parseMeta(s) {
   try { return JSON.parse(s || '{}') || {}; } catch { return {}; }
 }
@@ -34,7 +42,7 @@ export default async function PostDetail({ postId, backHref }) {
           <div className="ev-meta-row">
             <span className="ev-pill">📁 {post.board_name}</span>
             <span className="ev-pill">👤 {post.author_name || '익명'}</span>
-            <span className="ev-pill">🕐 {post.created_at}</span>
+            <span className="ev-pill">🕐 {formatDate(post.created_at)}</span>
             {post.pinned ? <span className="ev-pill" style={{ background: 'var(--warm)', color: 'var(--ink)' }}>📌 고정</span> : null}
           </div>
 
@@ -56,7 +64,7 @@ export default async function PostDetail({ postId, backHref }) {
           )}
           {board.type === 'assignment' && meta.due_date && (
             <div style={{ marginTop: 14, padding: 14, background: 'var(--warm-soft)', border: '1px solid var(--warm)', borderRadius: 12 }}>
-              <strong>⏰ 마감일</strong> <span style={{ marginLeft: 8 }}>{meta.due_date}</span>
+              <strong>⏰ 마감일</strong> <span style={{ marginLeft: 8 }}>{formatDate(meta.due_date)}</span>
             </div>
           )}
 

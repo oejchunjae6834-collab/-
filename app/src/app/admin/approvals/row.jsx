@@ -2,6 +2,14 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+function formatDate(value) {
+  if (!value && value !== 0) return '날짜 없음';
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const asString = String(value);
+  return asString.slice(0, 10);
+}
+
 export default function ApprovalRow({ user, family }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -28,7 +36,7 @@ export default function ApprovalRow({ user, family }) {
           {family.length > 0 && <> · 가족: {family.join(', ')}</>}
         </p>
         {user.motive && <p style={{ marginTop: 4, fontStyle: 'italic' }}>“{user.motive}”</p>}
-        <small className="muted">신청일: {user.created_at}</small>
+        <small className="muted">신청일: {formatDate(user.created_at)}</small>
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn btn-ok btn-sm" disabled={busy} onClick={() => action('approve')}>승인</button>
