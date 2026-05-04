@@ -20,6 +20,7 @@ export default async function AdminLayout({ children }) {
             <Link href="/admin/events" className="chip" style={{ textAlign: 'left' }}>📅 일정 관리</Link>
             <Link href="/admin/archive" className="chip" style={{ textAlign: 'left' }}>📚 아카이브 관리</Link>
             <Link href="/admin/portfolio" className="chip" style={{ textAlign: 'left' }}>🎨 활동 포트폴리오</Link>
+            <Link href="/admin/about" className="chip" style={{ textAlign: 'left' }}>📖 소개 페이지</Link>
             <Link href="/admin/cms" className="chip" style={{ textAlign: 'left' }}>✏️ CMS (랜딩 텍스트)</Link>
           </nav>
         </section>

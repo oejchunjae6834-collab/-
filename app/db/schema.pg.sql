@@ -195,6 +195,19 @@ CREATE TABLE IF NOT EXISTS session_attendances (
 CREATE INDEX IF NOT EXISTS idx_sa_session ON session_attendances(session_id);
 CREATE INDEX IF NOT EXISTS idx_sa_member  ON session_attendances(family_member_id);
 
+-- 소개 페이지 섹션 (블록 기반: 소제목 / 단락 / 이미지를 자유롭게 배치)
+CREATE TABLE IF NOT EXISTS about_sections (
+  id          SERIAL PRIMARY KEY,
+  type        TEXT NOT NULL CHECK (type IN ('heading','paragraph','image')),
+  content     TEXT,                 -- heading/paragraph: 본문 텍스트, image: 이미지 URL
+  caption     TEXT,                 -- image 전용 캡션 (선택)
+  position    INTEGER NOT NULL DEFAULT 100,
+  visible     INTEGER NOT NULL DEFAULT 1,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_about_position ON about_sections(position);
+
 -- 활동 포트폴리오
 CREATE TABLE IF NOT EXISTS portfolio_items (
   id          SERIAL PRIMARY KEY,

@@ -441,6 +441,49 @@ export async function myFamilySessionStatus(eventId, parentUserId) {
   `, [eventId, parentUserId]);
 }
 
+/* ========== 소개 페이지 섹션 ========== */
+export async function listAboutSections({ visibleOnly = false } = {}) {
+  const where = visibleOnly ? ' WHERE visible = 1' : '';
+  return query(`SELECT * FROM about_sections${where} ORDER BY position ASC, id ASC`);
+}
+export async function getAboutSection(id) {
+  return queryOne('SELECT * FROM about_sections WHERE id = $1', [id]);
+}
+export async function createAboutSection(data) {
+  const max = (await queryOne('SELECT MAX(position) AS m FROM about_sections'))?.m ?? 0;
+  const r = await execute(
+    `INSERT INTO about_sections (type, content, caption, position, visible)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [data.type, data.content ?? null, data.caption ?? null, max + 10, data.visible === 0 ? 0 : 1]
+  );
+  return getAboutSection(r.rows[0].id);
+}
+export async function updateAboutSection(id, data) {
+  const cols = ['type', 'content', 'caption', 'position', 'visible'];
+  const present = cols.filter((c) => data[c] !== undefined);
+  if (!present.length) return getAboutSection(id);
+  const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await execute(
+    `UPDATE about_sections SET ${sets}, updated_at = NOW() WHERE id = $${present.length + 1}`,
+    [...present.map((c) => data[c]), id]
+  );
+  return getAboutSection(id);
+}
+export async function deleteAboutSection(id) {
+  return execute('DELETE FROM about_sections WHERE id = $1', [id]);
+}
+export async function moveAboutSection(id, dir) {
+  const all = await listAboutSections();
+  const idx = all.findIndex((s) => s.id === id);
+  if (idx < 0) return null;
+  const swap = dir === 'up' ? all[idx - 1] : all[idx + 1];
+  if (!swap) return null;
+  const me = all[idx];
+  await execute('UPDATE about_sections SET position = $1 WHERE id = $2', [swap.position, me.id]);
+  await execute('UPDATE about_sections SET position = $1 WHERE id = $2', [me.position, swap.id]);
+  return true;
+}
+
 /* ========== 활동 포트폴리오 ========== */
 const PORTFOLIO_CATEGORIES = ['adult', 'kids', 'math', 'play'];
 const PORTFOLIO_SEED = {
