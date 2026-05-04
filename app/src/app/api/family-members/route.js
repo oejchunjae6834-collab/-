@@ -8,7 +8,7 @@ import { createFamilyMember } from '@/lib/queries.js';
  * 본인 가족만 추가 가능. 관리자는 parent_user_id로 다른 회원 가족도 추가 가능.
  */
 export async function POST(req) {
-  const me = requireMember();
+  const me = await requireMember();
   if (!me) return NextResponse.json({ error: '회원 로그인이 필요해요' }, { status: 401 });
   const data = await req.json();
   let parentId = me.id;
@@ -24,7 +24,7 @@ export async function POST(req) {
   if (!['부모', '자녀'].includes(data.type)) {
     return NextResponse.json({ error: '유형은 부모/자녀 중 하나' }, { status: 400 });
   }
-  const fm = createFamilyMember(parentId, {
+  const fm = await createFamilyMember(parentId, {
     name: data.name.trim(),
     type: data.type,
     age: data.age ? parseInt(data.age, 10) : null,

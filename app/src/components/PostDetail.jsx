@@ -9,11 +9,11 @@ function parseMeta(s) {
   try { return JSON.parse(s || '{}') || {}; } catch { return {}; }
 }
 
-export default function PostDetail({ postId, backHref }) {
-  const me = getCurrentUser();
-  const post = getPost(postId);
+export default async function PostDetail({ postId, backHref }) {
+  const me = await getCurrentUser();
+  const post = await getPost(postId);
   if (!post) redirect(backHref);
-  const board = getBoard(post.board_id);
+  const board = await getBoard(post.board_id);
   if (!canReadBoard(board, me)) redirect('/login');
 
   const meta = parseMeta(post.meta);
@@ -21,7 +21,7 @@ export default function PostDetail({ postId, backHref }) {
   const isMember = me && me.role_level >= ROLES.MEMBER;
   const canModerate = me && (me.role_level >= ROLES.ADMIN || hasPermission(me, 'moderate_comments'));
   const safeMe = isMember ? { id: me.id, name: me.name, role_level: me.role_level } : null;
-  const comments = post.comments_enabled ? listComments('post', post.id) : [];
+  const comments = post.comments_enabled ? await listComments('post', post.id) : [];
 
   return (
     <main className="layout single">

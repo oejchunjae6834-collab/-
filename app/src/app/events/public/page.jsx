@@ -3,8 +3,8 @@ import { listEvents } from '@/lib/queries.js';
 
 export const metadata = { title: '공개 행사 — 디적디적' };
 
-export default function PublicEventsPage() {
-  const events = listEvents({ publicOnly: true });
+export default async function PublicEventsPage() {
+  const events = await listEvents({ publicOnly: true });
 
   return (
     <main className="layout single">

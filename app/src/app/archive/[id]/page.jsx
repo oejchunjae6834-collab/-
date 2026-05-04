@@ -4,12 +4,12 @@ import { requireMember, hasPermission, ROLES } from '@/lib/auth.js';
 import { getArchive, listComments } from '@/lib/queries.js';
 import CommentSection from '@/components/CommentSection.jsx';
 
-export default function ArchiveDetail({ params }) {
-  const me = requireMember();
+export default async function ArchiveDetail({ params }) {
+  const me = await requireMember();
   if (!me) redirect('/login');
 
   const id = parseInt(params.id, 10);
-  const doc = getArchive(id);
+  const doc = await getArchive(id);
   if (!doc) {
     return (
       <main className="auth-page">
@@ -22,7 +22,7 @@ export default function ArchiveDetail({ params }) {
   let tags = [];
   try { tags = JSON.parse(doc.tags || '[]'); } catch {}
 
-  const comments = listComments('archive', id);
+  const comments = await listComments('archive', id);
   const canModerate = me.role_level >= ROLES.ADMIN || hasPermission(me, 'moderate_comments');
   const safeMe = { id: me.id, name: me.name, role_level: me.role_level };
 

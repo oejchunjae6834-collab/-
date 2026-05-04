@@ -21,7 +21,7 @@ export async function GET(req) {
     cookies().delete(PENDING_KEY);
   }
 
-  const result = consumeMagicLink({ token, signupData });
+  const result = await consumeMagicLink({ token, signupData });
 
   if (!result.ok) {
     return NextResponse.redirect(new URL(`/auth/error?reason=${result.reason}`, base));

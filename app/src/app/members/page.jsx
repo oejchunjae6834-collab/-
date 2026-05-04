@@ -4,11 +4,11 @@ import { listUsers } from '@/lib/queries.js';
 
 export const metadata = { title: '회원 명부 — 디적디적' };
 
-export default function MembersPage() {
-  const me = requireMember();
+export default async function MembersPage() {
+  const me = await requireMember();
   if (!me) redirect('/login');
 
-  const all = listUsers();
+  const all = await listUsers();
   const members = all.filter((u) => u.role_level >= 2);
 
   return (

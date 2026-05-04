@@ -5,13 +5,14 @@ import ArchiveClient from './client.jsx';
 
 export const metadata = { title: '아카이브 — 디적디적' };
 
-export default function ArchivePage({ searchParams }) {
-  const me = requireMember();
+export default async function ArchivePage({ searchParams }) {
+  const me = await requireMember();
   if (!me) redirect('/login');
 
   const tag = searchParams?.tag || 'all';
   const q = searchParams?.q || '';
-  const docs = listArchive({ tag, q }).map((d) => ({
+  const rows = await listArchive({ tag, q });
+  const docs = rows.map((d) => ({
     ...d,
     tags: (() => { try { return JSON.parse(d.tags); } catch { return []; } })(),
   }));

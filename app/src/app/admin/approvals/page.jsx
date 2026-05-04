@@ -3,8 +3,8 @@ import ApprovalRow from './row.jsx';
 
 export const metadata = { title: '가입 승인 — 디적디적 관리자' };
 
-export default function ApprovalsPage() {
-  const pending = listUsers({ pendingOnly: true });
+export default async function ApprovalsPage() {
+  const pending = await listUsers({ pendingOnly: true });
 
   return (
     <section className="card">

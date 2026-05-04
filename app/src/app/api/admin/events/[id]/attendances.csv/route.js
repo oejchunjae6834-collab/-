@@ -2,13 +2,13 @@ import { requireAdmin } from '@/lib/auth.js';
 import { getEvent, listAttendance, listPublicRsvps } from '@/lib/queries.js';
 
 export async function GET(_req, { params }) {
-  if (!requireAdmin()) return new Response('forbidden', { status: 403 });
+  if (!(await requireAdmin())) return new Response('forbidden', { status: 403 });
   const id = parseInt(params.id, 10);
-  const ev = getEvent(id);
+  const ev = await getEvent(id);
   if (!ev) return new Response('not found', { status: 404 });
 
-  const member = listAttendance(id);
-  const guest = ev.is_public ? listPublicRsvps(id) : [];
+  const member = await listAttendance(id);
+  const guest = ev.is_public ? await listPublicRsvps(id) : [];
 
   const escape = (s) => `"${(s ?? '').toString().replace(/"/g, '""')}"`;
   const lines = [];

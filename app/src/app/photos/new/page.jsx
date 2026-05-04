@@ -5,10 +5,11 @@ import NewPostForm from '@/components/NewPostForm.jsx';
 
 export const metadata = { title: '사진 올리기 — 디적디적' };
 
-export default function NewPhoto() {
-  const me = getCurrentUser();
-  const board = getBoard('photos');
-  if (!canWriteBoard(board, me, isBoardWriter)) redirect('/photos');
+export default async function NewPhoto() {
+  const me = await getCurrentUser();
+  const board = await getBoard('photos');
+  const isWriter = me ? await isBoardWriter(board.id, me.id) : false;
+  if (!canWriteBoard(board, me, isWriter)) redirect('/photos');
 
   return (
     <main className="layout single">
