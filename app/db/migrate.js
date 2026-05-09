@@ -88,18 +88,9 @@ async function main() {
   await exec(schema);
   console.log('📐 스키마 적용 완료');
 
-  // 매직링크 → 아이디·비밀번호 1회 마이그레이션
-  // password_hash가 NULL인 사용자 행이 하나라도 있으면 인증 테이블 비움.
-  const stale = await pool.query('SELECT COUNT(*)::int AS n FROM users WHERE password_hash IS NULL');
-  if (stale.rows[0].n > 0) {
-    console.log(`🧹 password_hash 미설정 사용자 ${stale.rows[0].n}명 발견 → 인증·가족·세션 테이블 초기화`);
-    await pool.query('TRUNCATE users, sessions, family_members RESTART IDENTITY CASCADE');
-    console.log('🧹 초기화 완료 — 새 시드를 적용합니다.');
-  }
-
   const seedHash = await hashPassword(TEMP_PW);
 
-  // ---- 사용자 ----
+  // ---- 사용자 (UPSERT — DB 상태와 무관하게 시드 계정의 비밀번호를 항상 보장) ----
   const users = [
     { email: 'oej@dijeok.test',  username: 'oej',   name: '오은진',     family_role: '운영진', family_members: '["엄마","아빠","첫째"]', is_approved: 1, role_level: 3 },
     { email: 'ymsn@dijeok.test', username: 'ymsn',  name: '양미선',     family_role: '운영진', family_members: '["양미선","배우자"]',     is_approved: 1, role_level: 2 },
@@ -108,8 +99,22 @@ async function main() {
     { email: 'les@dijeok.test',  username: 'les',   name: '이은숙',     family_role: '운영진', family_members: '["이은숙","아이"]',       is_approved: 1, role_level: 2 },
     { email: 'guest@dijeok.test',username: 'guest', name: '신청대기자', family_role: '학부모', family_members: '["엄마","아이"]',         is_approved: 0, role_level: 1 },
   ];
-  for (const u of users) u.password_hash = seedHash;
-  await seedTable('users', users, ['email','username','password_hash','name','family_role','family_members','is_approved','role_level']);
+  for (const u of users) {
+    await pool.query(
+      `INSERT INTO users (email, username, password_hash, name, family_role, family_members, is_approved, role_level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (email) DO UPDATE SET
+         username = EXCLUDED.username,
+         password_hash = EXCLUDED.password_hash,
+         name = EXCLUDED.name,
+         family_role = EXCLUDED.family_role,
+         family_members = EXCLUDED.family_members,
+         is_approved = EXCLUDED.is_approved,
+         role_level = EXCLUDED.role_level`,
+      [u.email, u.username, seedHash, u.name, u.family_role, u.family_members, u.is_approved, u.role_level]
+    );
+  }
+  console.log(`✅ users: ${users.length}건 upsert 완료 (password_hash 갱신 포함)`);
 
   // ---- 일정 ----
   const events = [
