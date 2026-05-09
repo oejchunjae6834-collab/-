@@ -327,13 +327,13 @@ export async function createFamilyMember(parentUserId, data) {
     [parentUserId]
   ))?.m ?? -1;
   const r = await execute(
-    'INSERT INTO family_members (parent_user_id, name, type, age, position) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-    [parentUserId, data.name, data.type || '자녀', data.age ?? null, max + 1]
+    'INSERT INTO family_members (parent_user_id, name, type, school, position) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [parentUserId, data.name, data.type || '자녀', data.school ?? null, max + 1]
   );
   return getFamilyMember(r.rows[0].id);
 }
 export async function updateFamilyMember(id, data) {
-  const cols = ['name', 'type', 'age', 'position'];
+  const cols = ['name', 'type', 'school', 'position'];
   const present = cols.filter((c) => data[c] !== undefined);
   if (!present.length) return getFamilyMember(id);
   const sets = present.map((c, i) => `${c} = $${i + 1}`).join(', ');

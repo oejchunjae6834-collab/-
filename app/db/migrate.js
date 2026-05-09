@@ -6,15 +6,31 @@
  *
  * 동작:
  *   1) DATABASE_URL에 연결
- *   2) schema.pg.sql 실행 (CREATE TABLE IF NOT EXISTS, 멱등)
- *   3) 빈 테이블에만 초기 시드 데이터 삽입
+ *   2) schema.pg.sql 실행 (CREATE/ALTER TABLE IF NOT EXISTS, 멱등)
+ *   3) password_hash가 비어있는 사용자 행이 있으면 인증 관련 테이블 자동 초기화
+ *   4) 빈 테이블에만 초기 시드 데이터 삽입
  *
  * Render의 buildCommand에서도 호출되므로 멱등(idempotent)이 필수.
  */
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const { promisify } = require('node:util');
 const { Pool } = require('pg');
+
+const scrypt = promisify(crypto.scrypt);
+const SCRYPT_N = 16384;
+const SCRYPT_KEYLEN = 64;
+const SCRYPT_SALT_BYTES = 16;
+
+async function hashPassword(plain) {
+  const salt = crypto.randomBytes(SCRYPT_SALT_BYTES);
+  const derived = await scrypt(plain, salt, SCRYPT_KEYLEN, { N: SCRYPT_N });
+  return `scrypt$${SCRYPT_N}$${salt.toString('base64')}$${derived.toString('base64')}`;
+}
+
+const TEMP_PW = process.env.SEED_TEMP_PASSWORD || 'dijeok2026!';
 
 // .env 로드 (Next.js 외부 스크립트라 수동 로드)
 const envPath = path.join(__dirname, '..', '.env');
@@ -54,8 +70,6 @@ async function seedTable(table, rows, columns) {
     console.log(`⏭  ${table}: 비어 있는 시드 (건너뜀)`);
     return;
   }
-  // VALUES (?, ?, ...) → ($1, $2, ...) 다중 삽입
-  // 안전하게 한 번에 한 행씩 INSERT (가독성 우선)
   for (const row of rows) {
     const vals = columns.map((c) => row[c] === undefined ? null : row[c]);
     const ph = columns.map((_, i) => `$${i + 1}`).join(', ');
@@ -70,25 +84,32 @@ async function seedTable(table, rows, columns) {
 async function main() {
   console.log(`🔌 연결: ${process.env.DATABASE_URL.replace(/:[^:@]+@/, ':***@')}`);
 
-  // ---- 스키마 적용 ----
   const schema = fs.readFileSync(path.join(__dirname, 'schema.pg.sql'), 'utf8');
   await exec(schema);
   console.log('📐 스키마 적용 완료');
 
-  // ============================================================
-  // 시드 데이터 — 기존 db/seed.js 내용을 Postgres로 옮김
-  // ============================================================
+  // 매직링크 → 아이디·비밀번호 1회 마이그레이션
+  // password_hash가 NULL인 사용자 행이 하나라도 있으면 인증 테이블 비움.
+  const stale = await pool.query('SELECT COUNT(*)::int AS n FROM users WHERE password_hash IS NULL');
+  if (stale.rows[0].n > 0) {
+    console.log(`🧹 password_hash 미설정 사용자 ${stale.rows[0].n}명 발견 → 인증·가족·세션 테이블 초기화`);
+    await pool.query('TRUNCATE users, sessions, family_members RESTART IDENTITY CASCADE');
+    console.log('🧹 초기화 완료 — 새 시드를 적용합니다.');
+  }
+
+  const seedHash = await hashPassword(TEMP_PW);
 
   // ---- 사용자 ----
   const users = [
-    { email: 'oej@dijeok.test',  name: '오은진',     family_role: '운영진', family_members: '["엄마","아빠","첫째"]', is_approved: 1, role_level: 3 },
-    { email: 'ymsn@dijeok.test', name: '양미선',     family_role: '운영진', family_members: '["양미선","배우자"]',     is_approved: 1, role_level: 2 },
-    { email: 'lsjn@dijeok.test', name: '이산지나',   family_role: '운영진', family_members: '["이산지나","아이"]',     is_approved: 1, role_level: 2 },
-    { email: 'kga@dijeok.test',  name: '고경애',     family_role: '운영진', family_members: '["고경애","아이"]',       is_approved: 1, role_level: 2 },
-    { email: 'les@dijeok.test',  name: '이은숙',     family_role: '운영진', family_members: '["이은숙","아이"]',       is_approved: 1, role_level: 2 },
-    { email: 'guest@dijeok.test',name: '신청대기자', family_role: '학부모', family_members: '["엄마","아이"]',         is_approved: 0, role_level: 1 },
+    { email: 'oej@dijeok.test',  username: 'oej',   name: '오은진',     family_role: '운영진', family_members: '["엄마","아빠","첫째"]', is_approved: 1, role_level: 3 },
+    { email: 'ymsn@dijeok.test', username: 'ymsn',  name: '양미선',     family_role: '운영진', family_members: '["양미선","배우자"]',     is_approved: 1, role_level: 2 },
+    { email: 'lsjn@dijeok.test', username: 'lsjn',  name: '이산지나',   family_role: '운영진', family_members: '["이산지나","아이"]',     is_approved: 1, role_level: 2 },
+    { email: 'kga@dijeok.test',  username: 'kga',   name: '고경애',     family_role: '운영진', family_members: '["고경애","아이"]',       is_approved: 1, role_level: 2 },
+    { email: 'les@dijeok.test',  username: 'les',   name: '이은숙',     family_role: '운영진', family_members: '["이은숙","아이"]',       is_approved: 1, role_level: 2 },
+    { email: 'guest@dijeok.test',username: 'guest', name: '신청대기자', family_role: '학부모', family_members: '["엄마","아이"]',         is_approved: 0, role_level: 1 },
   ];
-  await seedTable('users', users, ['email','name','family_role','family_members','is_approved','role_level']);
+  for (const u of users) u.password_hash = seedHash;
+  await seedTable('users', users, ['email','username','password_hash','name','family_role','family_members','is_approved','role_level']);
 
   // ---- 일정 ----
   const events = [
@@ -165,21 +186,21 @@ async function main() {
 
   // ---- 가족 구성원 ----
   const familyByUser = {
-    'oej@dijeok.test':  [['오은진', '부모', 42], ['배우자', '부모', 44], ['첫째', '자녀', 9]],
-    'ymsn@dijeok.test': [['양미선', '부모', 40], ['배우자', '부모', 41]],
-    'lsjn@dijeok.test': [['이산지나', '부모', 41], ['아이', '자녀', 8]],
-    'kga@dijeok.test':  [['고경애', '부모', 39], ['아이', '자녀', 7]],
-    'les@dijeok.test':  [['이은숙', '부모', 43], ['아이', '자녀', 11]],
+    'oej@dijeok.test':  [['오은진', '부모', null], ['배우자', '부모', null], ['첫째', '자녀', '초3']],
+    'ymsn@dijeok.test': [['양미선', '부모', null], ['배우자', '부모', null]],
+    'lsjn@dijeok.test': [['이산지나', '부모', null], ['아이', '자녀', '초2']],
+    'kga@dijeok.test':  [['고경애', '부모', null], ['아이', '자녀', '초1']],
+    'les@dijeok.test':  [['이은숙', '부모', null], ['아이', '자녀', '초5']],
   };
   const familyRows = [];
   for (const [email, members] of Object.entries(familyByUser)) {
     const u = (await pool.query('SELECT id FROM users WHERE email = $1', [email])).rows[0];
     if (!u) continue;
-    members.forEach(([name, type, age], i) => {
-      familyRows.push({ parent_user_id: u.id, name, type, age, position: i });
+    members.forEach(([name, type, school], i) => {
+      familyRows.push({ parent_user_id: u.id, name, type, school, position: i });
     });
   }
-  await seedTable('family_members', familyRows, ['parent_user_id','name','type','age','position']);
+  await seedTable('family_members', familyRows, ['parent_user_id','name','type','school','position']);
 
   // ---- 세션 (정기모임에 5표준 세션) ----
   const STANDARD_SESSIONS = [
@@ -211,7 +232,6 @@ async function main() {
   ];
   await seedTable('boards', boards, ['slug','name','type','description','read_role','write_role','comments_enabled','position','visible','is_system']);
 
-  // 'ai' 보드가 과거에 시드돼 있다면 숨김 (기능 제거됨)
   await pool.query("UPDATE boards SET visible = 0 WHERE slug = 'ai'");
 
   // ---- 샘플 게시물 ----
@@ -244,6 +264,7 @@ async function main() {
   }
 
   console.log('🌱 마이그레이션·시드 완료');
+  console.log(`🔑 시드 계정 임시 비밀번호: ${TEMP_PW}  (아이디: oej / ymsn / lsjn / kga / les / guest)`);
   await pool.end();
 }
 

@@ -10,6 +10,13 @@ const ALL_PERMS = [
 
 const ROLE_LABEL = { 0: '게스트', 1: '승인 대기', 2: '회원', 3: '관리자' };
 
+const SCHOOL_OPTIONS = [
+  '유치원',
+  '초1','초2','초3','초4','초5','초6',
+  '중1','중2','중3',
+  '고1','고2','고3',
+];
+
 function roleColor(level) {
   if (level >= 3) return 'var(--primary)';
   if (level === 2) return 'var(--accent)';
@@ -22,7 +29,7 @@ export default function MembersAdmin({ initialUsers }) {
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   // 새 가족 입력 상태
-  const [newFam, setNewFam] = useState({ name: '', type: '자녀', age: '' });
+  const [newFam, setNewFam] = useState({ name: '', type: '자녀', school: '' });
 
   function open(u) {
     setEditing({
@@ -35,7 +42,7 @@ export default function MembersAdmin({ initialUsers }) {
       permissions: u.permissions_arr || [],
       family_rows: u.family_rows || [],
     });
-    setNewFam({ name: '', type: '자녀', age: '' });
+    setNewFam({ name: '', type: '자녀', school: '' });
   }
 
   function togglePerm(p) {
@@ -93,13 +100,13 @@ export default function MembersAdmin({ initialUsers }) {
         parent_user_id: editing.id,
         name: newFam.name.trim(),
         type: newFam.type,
-        age: newFam.age ? parseInt(newFam.age, 10) : null,
+        school: newFam.type === '자녀' ? (newFam.school || null) : null,
       }),
     });
     if (!res.ok) { alert('추가 실패'); return; }
     const data = await res.json();
     setEditing((s) => ({ ...s, family_rows: [...s.family_rows, data.member] }));
-    setNewFam({ name: '', type: '자녀', age: '' });
+    setNewFam({ name: '', type: '자녀', school: '' });
   }
   async function removeFamily(id) {
     if (!confirm('이 가족 구성원을 삭제할까요? 출석 기록도 함께 사라져요.')) return;
@@ -207,28 +214,32 @@ export default function MembersAdmin({ initialUsers }) {
                   <span>{f.type === '부모' ? '👤' : '🧒'}</span>
                   <strong>{f.name}</strong>
                   <span className="muted small">{f.type}</span>
-                  <span className="muted small">{f.age != null ? `${f.age}세` : ''}</span>
+                  <span className="muted small">{f.school || ''}</span>
                   <button type="button" className="icon-btn icon-danger" title="삭제" onClick={() => removeFamily(f.id)}>×</button>
                 </div>
               ))}
             </div>
 
             <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px',
+              display: 'grid', gridTemplateColumns: '1fr 100px 120px 80px',
               gap: 8, alignItems: 'center', marginTop: 10,
             }}>
               <input type="text" placeholder="이름" value={newFam.name} onChange={(e) => setNewFam({ ...newFam, name: e.target.value })}
                 style={{ padding: 8, borderRadius: 8, border: '1px solid var(--line-strong)', background: 'var(--bg-soft)' }}
               />
-              <select value={newFam.type} onChange={(e) => setNewFam({ ...newFam, type: e.target.value })}
+              <select value={newFam.type} onChange={(e) => setNewFam({ ...newFam, type: e.target.value, school: e.target.value === '부모' ? '' : newFam.school })}
                 style={{ padding: 8, borderRadius: 8, border: '1px solid var(--line-strong)', background: 'var(--bg-soft)' }}
               >
                 <option>자녀</option>
                 <option>부모</option>
               </select>
-              <input type="number" placeholder="나이" value={newFam.age} onChange={(e) => setNewFam({ ...newFam, age: e.target.value })} min="0" max="120"
+              <select value={newFam.school} onChange={(e) => setNewFam({ ...newFam, school: e.target.value })}
+                disabled={newFam.type !== '자녀'}
                 style={{ padding: 8, borderRadius: 8, border: '1px solid var(--line-strong)', background: 'var(--bg-soft)' }}
-              />
+              >
+                <option value="">{newFam.type === '자녀' ? '학교·학년' : '—'}</option>
+                {SCHOOL_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
               <button type="button" className="btn btn-primary btn-sm" onClick={addFamily} disabled={!newFam.name.trim()}>+ 추가</button>
             </div>
           </div>

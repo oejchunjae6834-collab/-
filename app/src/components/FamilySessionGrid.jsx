@@ -49,7 +49,7 @@ export default function FamilySessionGrid({
         status: next,
         member_name: fm.name,
         member_type: fm.type,
-        age: fm.age ?? null,
+        school: fm.school ?? null,
         parent_user_id: myUserId,
         parent_name: '나',
       });
@@ -176,7 +176,7 @@ export default function FamilySessionGrid({
                     {fm.type === '부모' ? '👤' : '🧒'} {fm.name}
                   </div>
                   <div className="fs-member-meta">
-                    {fm.type}{fm.age ? ` · ${fm.age}세` : ''}
+                    {fm.type}{fm.school ? ` · ${fm.school}` : ''}
                   </div>
                 </th>
                 {sessions.map((s) => {

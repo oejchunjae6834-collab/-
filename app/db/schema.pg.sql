@@ -12,6 +12,8 @@
 CREATE TABLE IF NOT EXISTS users (
   id              SERIAL PRIMARY KEY,
   email           TEXT NOT NULL UNIQUE,
+  username        TEXT,
+  password_hash   TEXT,
   name            TEXT NOT NULL,
   family_members  TEXT,
   family_role     TEXT,
@@ -22,17 +24,12 @@ CREATE TABLE IF NOT EXISTS users (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   approved_at     TIMESTAMPTZ
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_key ON users(username);
 
--- 매직링크 (이메일 1회용 토큰)
-CREATE TABLE IF NOT EXISTS magic_links (
-  id          SERIAL PRIMARY KEY,
-  email       TEXT NOT NULL,
-  token       TEXT NOT NULL UNIQUE,
-  expires_at  TIMESTAMPTZ NOT NULL,
-  used_at     TIMESTAMPTZ,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_magic_email ON magic_links(email);
+-- 매직링크 테이블은 더 이상 사용하지 않음 (아이디·비밀번호 방식으로 전환)
+DROP TABLE IF EXISTS magic_links;
 
 -- 세션 (로그인 쿠키)
 CREATE TABLE IF NOT EXISTS sessions (
@@ -165,9 +162,11 @@ CREATE TABLE IF NOT EXISTS family_members (
   name            TEXT NOT NULL,
   type            TEXT NOT NULL CHECK (type IN ('부모','자녀')),
   age             INTEGER,
+  school          TEXT,
   position        INTEGER NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS school TEXT;
 CREATE INDEX IF NOT EXISTS idx_family_parent ON family_members(parent_user_id);
 
 -- 모임 세션 (일정 내 시간대별 프로그램)

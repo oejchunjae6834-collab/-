@@ -1,17 +1,31 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-const EMPTY_FAMILY = { name: '', type: '자녀', age: '' };
+const SCHOOL_OPTIONS = [
+  '유치원',
+  '초1','초2','초3','초4','초5','초6',
+  '중1','중2','중3',
+  '고1','고2','고3',
+];
+
+const EMPTY_FAMILY = { name: '', type: '자녀', school: '' };
 
 export default function SignupForm() {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [families, setFamilies] = useState([
-    { name: '', type: '부모', age: '' },
+    { name: '', type: '부모', school: '' },
   ]);
 
   function setFam(i, field, v) {
-    setFamilies((arr) => arr.map((f, idx) => idx === i ? { ...f, [field]: v } : f));
+    setFamilies((arr) => arr.map((f, idx) => {
+      if (idx !== i) return f;
+      const next = { ...f, [field]: v };
+      if (field === 'type' && v === '부모') next.school = '';
+      return next;
+    }));
   }
   function addFam() { setFamilies((arr) => [...arr, { ...EMPTY_FAMILY }]); }
   function removeFam(i) { setFamilies((arr) => arr.filter((_, idx) => idx !== i)); }
@@ -21,15 +35,24 @@ export default function SignupForm() {
     setBusy(true);
     setMsg(null);
     const fd = new FormData(e.currentTarget);
+    const password = fd.get('password').toString();
+    const passwordConfirm = fd.get('password_confirm').toString();
+    if (password !== passwordConfirm) {
+      setMsg({ type: 'err', text: '비밀번호 확인이 일치하지 않아요' });
+      setBusy(false);
+      return;
+    }
     const cleanedFamilies = families
       .filter((f) => f.name.trim())
       .map((f) => ({
         name: f.name.trim(),
         type: f.type,
-        age: f.age ? parseInt(f.age, 10) : null,
+        school: f.type === '자녀' ? (f.school || null) : null,
       }));
     const payload = {
       email: fd.get('email').toString().trim(),
+      username: fd.get('username').toString().trim(),
+      password,
       name: fd.get('name').toString().trim(),
       family_role: fd.get('family_role').toString(),
       family_members: cleanedFamilies,
@@ -43,12 +66,10 @@ export default function SignupForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '오류가 발생했어요');
-      setMsg({ type: 'ok', text: '신청 완료! 매직링크가 발송되었어요. 인증 후 자동으로 승인 대기 상태로 전환됩니다.', devUrl: data.devUrl });
-      e.currentTarget.reset();
-      setFamilies([{ name: '', type: '부모', age: '' }]);
+      router.push('/auth/pending');
+      router.refresh();
     } catch (err) {
       setMsg({ type: 'err', text: err.message });
-    } finally {
       setBusy(false);
     }
   }
@@ -57,13 +78,26 @@ export default function SignupForm() {
     <form onSubmit={submit} className="form-grid">
       <label className="full">
         <span>이메일 <em>*</em></span>
-        <input type="email" name="email" required placeholder="example@email.com" />
+        <input type="email" name="email" required placeholder="example@email.com" autoComplete="email" />
+      </label>
+      <label>
+        <span>아이디 <em>*</em></span>
+        <input type="text" name="username" required minLength={3} maxLength={20} pattern="[a-zA-Z0-9_.\-]{3,20}"
+          placeholder="영문/숫자 3~20자" autoComplete="username" />
       </label>
       <label>
         <span>이름 (대표 신청자) <em>*</em></span>
         <input type="text" name="name" required placeholder="홍길동" />
       </label>
       <label>
+        <span>비밀번호 <em>*</em></span>
+        <input type="password" name="password" required minLength={6} placeholder="6자 이상" autoComplete="new-password" />
+      </label>
+      <label>
+        <span>비밀번호 확인 <em>*</em></span>
+        <input type="password" name="password_confirm" required minLength={6} placeholder="다시 입력" autoComplete="new-password" />
+      </label>
+      <label className="full">
         <span>가족 형태 <em>*</em></span>
         <select name="family_role" required defaultValue="">
           <option value="" disabled>선택해 주세요</option>
@@ -78,13 +112,13 @@ export default function SignupForm() {
         <h4 style={{ margin: 0 }}>👨‍👩‍👧 가족 구성원</h4>
         <p className="muted small" style={{ marginTop: 4 }}>
           정기모임은 시간대별 세션으로 운영돼요. 부모와 자녀 각자가 어떤 세션에 참여할지 체크할 수 있도록,
-          함께 오실 가족을 미리 등록해 주세요. 승인 후 바로 출석 체크에 반영돼요.
+          함께 오실 가족을 미리 등록해 주세요. 자녀는 학교·학년을 함께 선택해 주세요.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           {families.map((f, i) => (
             <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '1fr 90px 70px 30px',
+              display: 'grid', gridTemplateColumns: '1fr 110px 130px 30px',
               gap: 8, alignItems: 'center',
             }}>
               <input
@@ -102,14 +136,15 @@ export default function SignupForm() {
                 <option>부모</option>
                 <option>자녀</option>
               </select>
-              <input
-                type="number"
-                placeholder="나이"
-                min="0" max="120"
-                value={f.age}
-                onChange={(e) => setFam(i, 'age', e.target.value)}
+              <select
+                value={f.school}
+                onChange={(e) => setFam(i, 'school', e.target.value)}
+                disabled={f.type !== '자녀'}
                 style={{ padding: 9, borderRadius: 8, border: '1px solid var(--line-strong)', background: 'var(--bg-soft)', font: 'inherit' }}
-              />
+              >
+                <option value="">{f.type === '자녀' ? '학교·학년' : '—'}</option>
+                {SCHOOL_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
               <button
                 type="button"
                 onClick={() => removeFam(i)}
@@ -135,22 +170,9 @@ export default function SignupForm() {
       </label>
       <div className="form-actions full">
         <button className="btn btn-primary" disabled={busy}>
-          {busy ? '신청 중…' : '가입 신청 + 매직링크 받기'}
+          {busy ? '신청 중…' : '회원가입 신청'}
         </button>
       </div>
-      {msg && msg.type === 'ok' && (
-        <div className="banner-info full">
-          ✅ {msg.text}
-          {msg.devUrl && (
-            <>
-              <br />
-              <a href={msg.devUrl} style={{ color: 'var(--accent)', fontWeight: 700 }}>
-                👉 개발용 바로 인증 링크
-              </a>
-            </>
-          )}
-        </div>
-      )}
       {msg && msg.type === 'err' && (
         <div className="banner-warn full">⚠️ {msg.text}</div>
       )}

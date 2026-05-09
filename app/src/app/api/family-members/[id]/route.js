@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getCurrentUser, ROLES } from '@/lib/auth.js';
+import { getCurrentUser, ROLES, SCHOOL_OPTIONS } from '@/lib/auth.js';
 import { getFamilyMember, updateFamilyMember, deleteFamilyMember } from '@/lib/queries.js';
+
+function normalizeSchool(value) {
+  if (value === null) return null;
+  if (value === undefined) return undefined;
+  return SCHOOL_OPTIONS.includes(value) ? value : null;
+}
 
 function checkAccess(fm, me) {
   if (!me) return '로그인 필요';
@@ -19,7 +25,7 @@ export async function PUT(req, { params }) {
   const updated = await updateFamilyMember(fm.id, {
     name: data.name?.trim(),
     type: data.type,
-    age: data.age != null ? parseInt(data.age, 10) : undefined,
+    school: 'school' in data ? normalizeSchool(data.school) : undefined,
   });
   return NextResponse.json({ ok: true, member: updated });
 }

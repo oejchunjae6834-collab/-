@@ -1,21 +1,24 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-const LOGIN_EMAIL_KEY = 'dijeok_login_email';
+const LOGIN_USERNAME_KEY = 'dijeok_login_username';
 
 export default function LoginForm() {
-  const [email, setEmail] = useState('');
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(LOGIN_EMAIL_KEY);
-    if (saved) setEmail(saved);
+    const saved = window.localStorage.getItem(LOGIN_USERNAME_KEY);
+    if (saved) setUsername(saved);
   }, []);
 
   useEffect(() => {
-    if (email) window.localStorage.setItem(LOGIN_EMAIL_KEY, email);
-  }, [email]);
+    if (username) window.localStorage.setItem(LOGIN_USERNAME_KEY, username);
+  }, [username]);
 
   async function submit(e) {
     e.preventDefault();
@@ -25,19 +28,15 @@ export default function LoginForm() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '오류가 발생했어요');
-      // 개발 환경에서는 서버 응답에 magicUrl이 같이 와요 → 바로 안내
-      setMsg({
-        type: 'ok',
-        text: '매직링크를 보냈어요. 서버 콘솔에서 링크를 확인해 주세요.',
-        devUrl: data.devUrl,
-      });
+      if (!res.ok) throw new Error(data.error || '로그인 실패');
+      const next = data.role_level >= 2 ? '/calendar' : '/auth/pending';
+      router.push(next);
+      router.refresh();
     } catch (err) {
       setMsg({ type: 'err', text: err.message });
-    } finally {
       setBusy(false);
     }
   }
@@ -45,34 +44,29 @@ export default function LoginForm() {
   return (
     <form onSubmit={submit} className="form-grid">
       <label className="full">
-        <span>이메일 <em>*</em></span>
+        <span>아이디 <em>*</em></span>
         <input
-          type="email" required value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="oej@dijeok.test (시드 계정 예시)"
+          type="text" required value={username} autoComplete="username"
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="아이디 또는 이메일"
         />
       </label>
-      <p className="muted small" style={{ marginTop: 4 }}>
-        입력한 이메일은 자동 저장되어 다음에 다시 로그인할 때 편리합니다.
+      <label className="full">
+        <span>비밀번호 <em>*</em></span>
+        <input
+          type="password" required value={password} autoComplete="current-password"
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="비밀번호"
+        />
+      </label>
+      <p className="muted small full" style={{ marginTop: 4 }}>
+        아이디는 자동 저장되어 다음 로그인 때 편리합니다.
       </p>
       <div className="form-actions full">
         <button className="btn btn-primary" disabled={busy}>
-          {busy ? '발송 중…' : '매직링크 받기'}
+          {busy ? '로그인 중…' : '로그인'}
         </button>
       </div>
-      {msg && msg.type === 'ok' && (
-        <div className="banner-info full">
-          ✅ {msg.text}
-          {msg.devUrl && (
-            <>
-              <br />
-              <a href={msg.devUrl} style={{ color: 'var(--accent)', fontWeight: 700 }}>
-                👉 개발용 바로 인증 링크
-              </a>
-            </>
-          )}
-        </div>
-      )}
       {msg && msg.type === 'err' && (
         <div className="banner-warn full">⚠️ {msg.text}</div>
       )}

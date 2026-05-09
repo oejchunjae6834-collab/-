@@ -1,114 +1,118 @@
 /**
- * 매직링크 기반 세션 인증 (Postgres).
+ * 아이디·비밀번호 기반 세션 인증 (Postgres).
  *
- * - 비밀번호 없음. 이메일 → 1회용 토큰 → 세션 쿠키.
- * - SMTP 미설정 시 콘솔 출력 (lib/email.js의 RESEND 폴백).
- * - 모든 함수 async.
+ * - users.username + users.password_hash 로 로그인.
+ * - scrypt 해시(lib/password.js).
+ * - 세션은 sessions 테이블 + 'dd_sid' httpOnly 쿠키.
  */
 import crypto from 'node:crypto';
-import { cookies, headers } from 'next/headers';
-import { query, queryOne, execute } from './db.js';
+import { cookies } from 'next/headers';
+import { queryOne, execute } from './db.js';
+import { hashPassword, verifyPassword } from './password.js';
 
 const SESSION_COOKIE = 'dd_sid';
 const SESSION_TTL_DAYS = 30;
-const MAGIC_TTL_MIN = 15;
 
 export const ROLES = { GUEST: 0, PENDING: 1, MEMBER: 2, ADMIN: 3 };
+
+export const SCHOOL_OPTIONS = [
+  '유치원',
+  '초1','초2','초3','초4','초5','초6',
+  '중1','중2','중3',
+  '고1','고2','고3',
+];
 
 function rand(bytes = 32) {
   return crypto.randomBytes(bytes).toString('hex');
 }
-
-function nowISO() { return new Date().toISOString(); }
-function plusMinutes(min) { return new Date(Date.now() + min * 60 * 1000).toISOString(); }
 function plusDays(d) { return new Date(Date.now() + d * 86400 * 1000).toISOString(); }
 
-/**
- * 매직링크 생성. 가입(name 등 추가) 또는 로그인 모두 동일 흐름.
- * 반환되는 토큰을 url에 담아 lib/email.js로 발송.
- */
-export async function createMagicLink(email) {
-  const token = rand(24);
-  await execute(
-    'INSERT INTO magic_links (email, token, expires_at) VALUES ($1, $2, $3)',
-    [email.toLowerCase().trim(), token, plusMinutes(MAGIC_TTL_MIN)]
-  );
-  return token;
+function normalizeSchool(value) {
+  if (!value) return null;
+  return SCHOOL_OPTIONS.includes(value) ? value : null;
 }
 
-/**
- * 매직링크 검증 → 세션 발행 → 쿠키 셋업
- * 가입 폼에서 넘어온 경우 user 정보로 신규 행 생성 (pending 상태).
- */
-export async function consumeMagicLink({ token, signupData }) {
-  const row = await queryOne('SELECT * FROM magic_links WHERE token = $1', [token]);
-  if (!row) return { ok: false, reason: 'invalid' };
-  if (row.used_at) return { ok: false, reason: 'used' };
-  if (new Date(row.expires_at) < new Date()) return { ok: false, reason: 'expired' };
-
-  const email = row.email;
-  let user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
-
-  if (!user) {
-    if (!signupData) return { ok: false, reason: 'no_user' };
-
-    // family_members 폼 입력 호환 (신: [{name,type,age}], 구: ['엄마','아빠'])
-    const fams = Array.isArray(signupData.family_members) ? signupData.family_members : [];
-    const isStructured = fams.length && typeof fams[0] === 'object';
-    const familyNamesJson = JSON.stringify(
-      isStructured ? fams.map((f) => f.name) : fams
-    );
-
-    await execute(
-      `INSERT INTO users (email, name, family_role, family_members, motive, is_approved, role_level)
-       VALUES ($1, $2, $3, $4, $5, 0, 1)`,
-      [
-        email,
-        signupData.name,
-        signupData.family_role,
-        familyNamesJson,
-        signupData.motive || null,
-      ]
-    );
-    user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
-
-    if (isStructured) {
-      for (let i = 0; i < fams.length; i++) {
-        const f = fams[i];
-        await execute(
-          'INSERT INTO family_members (parent_user_id, name, type, age, position) VALUES ($1, $2, $3, $4, $5)',
-          [
-            user.id,
-            (f.name || '').trim() || `구성원 ${i + 1}`,
-            ['부모', '자녀'].includes(f.type) ? f.type : '자녀',
-            f.age != null ? Number(f.age) : null,
-            i,
-          ]
-        );
-      }
-    }
-  }
-
-  await execute('UPDATE magic_links SET used_at = $1 WHERE id = $2', [nowISO(), row.id]);
-
-  // 세션 발행
+async function issueSession(userId) {
   const sid = rand(32);
   await execute(
     'INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)',
-    [sid, user.id, plusDays(SESSION_TTL_DAYS)]
+    [sid, userId, plusDays(SESSION_TTL_DAYS)]
   );
-
-  // 세션 쿠키 설정: 프로덕션(HTTPS) 또는 개발(localhost)에서 작동하도록 구성
   const isProduction = process.env.NODE_ENV === 'production';
   cookies().set(SESSION_COOKIE, sid, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
     maxAge: SESSION_TTL_DAYS * 86400,
-    secure: isProduction, // HTTPS 환경에서만 secure=true
+    secure: isProduction,
   });
-  console.log(`[auth] 세션 쿠키 설정: ${SESSION_COOKIE} (secure=${isProduction}, maxAge=${SESSION_TTL_DAYS * 86400}s)`);
+  return sid;
+}
 
+/** 아이디·비밀번호 로그인. username 또는 email 입력 모두 허용. */
+export async function loginWithPassword({ username, password }) {
+  const id = (username || '').trim();
+  if (!id || !password) return { ok: false, reason: 'missing' };
+  const lookup = id.toLowerCase();
+  const user = await queryOne(
+    'SELECT * FROM users WHERE LOWER(username) = $1 OR LOWER(email) = $1',
+    [lookup]
+  );
+  if (!user || !user.password_hash) return { ok: false, reason: 'invalid' };
+  const ok = await verifyPassword(password, user.password_hash);
+  if (!ok) return { ok: false, reason: 'invalid' };
+  await issueSession(user.id);
+  return { ok: true, user };
+}
+
+/**
+ * 신규 회원가입: users 행 + family_members 일괄 생성, 즉시 세션 발행.
+ * 가입 직후 role_level=1 (승인 대기). 관리자가 승인 후 정회원으로 전환.
+ */
+export async function signupWithPassword(data) {
+  const email = (data.email || '').toLowerCase().trim();
+  const username = (data.username || '').trim();
+  const password = data.password || '';
+  const name = (data.name || '').trim();
+  const familyRole = (data.family_role || '').trim();
+
+  if (!email.includes('@')) return { ok: false, reason: '유효한 이메일을 입력해 주세요' };
+  if (!/^[a-zA-Z0-9_.-]{3,20}$/.test(username)) {
+    return { ok: false, reason: '아이디는 영문/숫자/._- 조합 3~20자' };
+  }
+  if (password.length < 6) return { ok: false, reason: '비밀번호는 6자 이상이어야 해요' };
+  if (!name || !familyRole) return { ok: false, reason: '이름과 가족 형태는 필수예요' };
+
+  const dupEmail = await queryOne('SELECT id FROM users WHERE LOWER(email) = $1', [email]);
+  if (dupEmail) return { ok: false, reason: '이미 가입된 이메일이에요' };
+  const dupName = await queryOne('SELECT id FROM users WHERE LOWER(username) = $1', [username.toLowerCase()]);
+  if (dupName) return { ok: false, reason: '이미 사용 중인 아이디예요' };
+
+  const password_hash = await hashPassword(password);
+  const fams = Array.isArray(data.family_members) ? data.family_members : [];
+  const familyNamesJson = JSON.stringify(fams.map((f) => f.name).filter(Boolean));
+
+  const inserted = await queryOne(
+    `INSERT INTO users (email, username, password_hash, name, family_role, family_members, motive, is_approved, role_level)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 1)
+     RETURNING *`,
+    [email, username, password_hash, name, familyRole, familyNamesJson, data.motive || null]
+  );
+  const user = inserted;
+
+  for (let i = 0; i < fams.length; i++) {
+    const f = fams[i];
+    const memberName = (f.name || '').trim();
+    if (!memberName) continue;
+    const type = ['부모', '자녀'].includes(f.type) ? f.type : '자녀';
+    const school = type === '자녀' ? normalizeSchool(f.school) : null;
+    await execute(
+      'INSERT INTO family_members (parent_user_id, name, type, school, position) VALUES ($1, $2, $3, $4, $5)',
+      [user.id, memberName, type, school, i]
+    );
+  }
+
+  await issueSession(user.id);
   return { ok: true, user };
 }
 
@@ -143,11 +147,6 @@ export async function requireAdmin() {
   return u;
 }
 
-/**
- * 권한 검사 — 관리자는 모든 권한 자동 보유.
- * 회원의 permissions JSON 배열에 perm 문자열이 있으면 통과.
- * (동기 함수 — user 객체만 다룸)
- */
 export function userPermissions(user) {
   if (!user) return [];
   if (user.role_level >= ROLES.ADMIN) return ['*'];
@@ -160,7 +159,6 @@ export function hasPermission(user, perm) {
   const list = userPermissions(user);
   return list.includes('*') || list.includes(perm);
 }
-/** 회원이고 perm을 가진 사람만 통과. 그 외엔 null 반환 */
 export async function requirePermission(perm) {
   const u = await getCurrentUser();
   if (!u || u.role_level < ROLES.MEMBER) return null;
@@ -168,120 +166,15 @@ export async function requirePermission(perm) {
   return u;
 }
 
-/**
- * 보드 권한 체크. (동기 — board/user 객체만 다룸)
- */
 export function canReadBoard(board, user) {
   if (!board) return false;
   const role = user?.role_level ?? ROLES.GUEST;
   return role >= board.read_role;
 }
-/**
- * 보드 글쓰기 권한 체크 (동기).
- * @param isWriterByGrant - 미리 계산한 board_writers 부여 여부 (await isBoardWriter(...) 결과)
- */
 export function canWriteBoard(board, user, isWriterByGrant = false) {
   if (!board || !user) return false;
   if (user.role_level >= ROLES.ADMIN) return true;
   if (user.role_level >= board.write_role) return true;
   if (isWriterByGrant) return true;
   return false;
-}
-
-/**
- * 사이트의 외부 접근 URL을 반환.
- * 우선순위: NEXT_PUBLIC_BASE_URL > 현재 요청 헤더(x-forwarded-host/host) > 개발 환경 localhost
- * Render·Vercel 등 프록시 환경에서도 자동 동작.
- */
-function cleanBaseUrl(value) {
-  return value?.replace(/\/$/, '');
-}
-
-function isLocalBaseUrl(value) {
-  if (!value) return false;
-  try {
-    const { hostname } = new URL(value);
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-  } catch {
-    return value.includes('localhost') || value.includes('127.0.0.1');
-  }
-}
-
-function getHeaderValue(source, name) {
-  if (!source) return null;
-  if (typeof source.get === 'function') return source.get(name);
-  return source[name] || null;
-}
-
-function getBaseFromHeaders(source) {
-  const host = getHeaderValue(source, 'x-forwarded-host') || getHeaderValue(source, 'host');
-  if (!host) return null;
-
-  const proto = getHeaderValue(source, 'x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-  return `${proto}://${host}`;
-}
-
-function getRenderBaseUrl() {
-  if (process.env.RENDER_EXTERNAL_URL) return cleanBaseUrl(process.env.RENDER_EXTERNAL_URL);
-  if (process.env.RENDER_EXTERNAL_HOSTNAME) return `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
-  return null;
-}
-
-export function getSiteBase(requestOrHeaders) {
-  const env = process.env.NEXT_PUBLIC_BASE_URL;
-  const requestHeaders = requestOrHeaders?.headers || requestOrHeaders;
-  const baseFromRequest = getBaseFromHeaders(requestHeaders);
-  const baseFromRender = getRenderBaseUrl();
-
-  if (env) {
-    const url = cleanBaseUrl(env);
-    if (isLocalBaseUrl(url) && baseFromRender) {
-      console.warn('[auth] getSiteBase: ignoring localhost NEXT_PUBLIC_BASE_URL because Render public URL is available');
-      return baseFromRender;
-    }
-    if (isLocalBaseUrl(url) && baseFromRequest && !isLocalBaseUrl(baseFromRequest)) {
-      console.warn('[auth] getSiteBase: ignoring localhost NEXT_PUBLIC_BASE_URL because request host is public');
-      return baseFromRequest;
-    }
-    if (process.env.NODE_ENV !== 'development' && isLocalBaseUrl(url)) {
-      throw new Error('NEXT_PUBLIC_BASE_URL points to localhost outside development.');
-    }
-    console.log('[auth] getSiteBase: NEXT_PUBLIC_BASE_URL =', url);
-    return url;
-  }
-
-  if (baseFromRender) {
-    console.log('[auth] getSiteBase: Render public URL =', baseFromRender);
-    return baseFromRender;
-  }
-
-  if (baseFromRequest) {
-    console.log('[auth] getSiteBase: request headers =', baseFromRequest);
-    return baseFromRequest;
-  }
-  try {
-    const h = headers();
-    const host = h.get('x-forwarded-host') || h.get('host');
-    if (host) {
-      const proto = h.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-      const url = `${proto}://${host}`;
-      console.log('[auth] getSiteBase: 요청 헤더에서 =', url);
-      return url;
-    }
-  } catch (e) {
-    console.log('[auth] getSiteBase: headers() 호출 불가 (request 컨텍스트 외부?):', e.message);
-  }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Unable to determine public site URL. Set NEXT_PUBLIC_BASE_URL or call getSiteBase with a request.');
-  }
-
-  console.log('[auth] getSiteBase: localhost로 폴백');
-  return 'http://localhost:3000';
-}
-
-/** 매직링크 URL — Route Handler가 토큰 소비 + 리다이렉트 처리 */
-export function buildMagicUrl(token, requestOrHeaders) {
-  const url = new URL('/api/auth/verify', getSiteBase(requestOrHeaders));
-  url.searchParams.set('token', token);
-  return url.toString();
 }

@@ -5,7 +5,7 @@ export const metadata = { title: '회원가입 신청 — 디적디적' };
 
 export default function SignupPage() {
   return (
-    <main className="auth-page">
+    <main className="auth-page wide">
       <h2>회원가입 신청</h2>
       <p className="muted">
         디적디적은 가족 단위로 함께하는 모임이에요.

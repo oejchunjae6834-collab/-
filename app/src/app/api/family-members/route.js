@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { requireMember, ROLES } from '@/lib/auth.js';
+import { requireMember, ROLES, SCHOOL_OPTIONS } from '@/lib/auth.js';
 import { createFamilyMember } from '@/lib/queries.js';
 
-/**
- * 가족 구성원 추가
- * body: { parent_user_id?, name, type: '부모'|'자녀', age? }
- * 본인 가족만 추가 가능. 관리자는 parent_user_id로 다른 회원 가족도 추가 가능.
- */
 export async function POST(req) {
   const me = await requireMember();
   if (!me) return NextResponse.json({ error: '회원 로그인이 필요해요' }, { status: 401 });
@@ -24,10 +19,11 @@ export async function POST(req) {
   if (!['부모', '자녀'].includes(data.type)) {
     return NextResponse.json({ error: '유형은 부모/자녀 중 하나' }, { status: 400 });
   }
+  const school = data.type === '자녀' && SCHOOL_OPTIONS.includes(data.school) ? data.school : null;
   const fm = await createFamilyMember(parentId, {
     name: data.name.trim(),
     type: data.type,
-    age: data.age ? parseInt(data.age, 10) : null,
+    school,
   });
   return NextResponse.json({ ok: true, member: fm });
 }
