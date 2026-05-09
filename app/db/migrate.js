@@ -99,6 +99,19 @@ async function main() {
     { email: 'les@dijeok.test',  username: 'les',   name: '이은숙',     family_role: '운영진', family_members: '["이은숙","아이"]',       is_approved: 1, role_level: 2 },
     { email: 'guest@dijeok.test',username: 'guest', name: '신청대기자', family_role: '학부모', family_members: '["엄마","아이"]',         is_approved: 0, role_level: 1 },
   ];
+  // 1) 시드 계정 username과 충돌하는 기존 행이 있으면 username을 비워 충돌 해제
+  //    (실제 가입한 사용자가 우연히 같은 username을 쓰고 있을 수 있으므로 행 자체는 보존)
+  const seedEmails = users.map((u) => u.email);
+  const seedUsernames = users.map((u) => u.username);
+  await pool.query(
+    `UPDATE users
+     SET username = NULL
+     WHERE username = ANY($1::text[])
+       AND email <> ALL($2::text[])`,
+    [seedUsernames, seedEmails]
+  );
+
+  // 2) 시드 계정 UPSERT — DB 상태와 무관하게 비밀번호를 항상 보장
   for (const u of users) {
     await pool.query(
       `INSERT INTO users (email, username, password_hash, name, family_role, family_members, is_approved, role_level)
