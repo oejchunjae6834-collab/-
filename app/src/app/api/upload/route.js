@@ -69,7 +69,22 @@ export async function POST(req) {
       upsert: false,
     });
   if (error) {
-    return NextResponse.json({ error: `업로드 실패: ${error.message}` }, { status: 500 });
+    console.error('[upload] Supabase Storage 오류:', {
+      message: error.message,
+      statusCode: error.statusCode,
+      bucket: STORAGE_BUCKET,
+      fname,
+      supabaseUrl: process.env.SUPABASE_URL?.slice(0, 40) + '...',
+    });
+    const hint = error.message?.includes('not found')
+      ? ` (Supabase Storage에서 '${STORAGE_BUCKET}' 버킷이 보이는지 확인해 주세요)`
+      : error.message?.includes('Invalid')
+      ? ` (SUPABASE_URL 환경변수의 형식을 확인해 주세요. 예: https://xxx.supabase.co)`
+      : '';
+    return NextResponse.json(
+      { error: `업로드 실패: ${error.message}${hint}` },
+      { status: 500 }
+    );
   }
 
   const { data: pub } = supabaseAdmin()

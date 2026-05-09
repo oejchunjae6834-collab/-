@@ -16,9 +16,14 @@ export function supabaseAdmin() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 환경변수가 없습니다.');
   }
+  // SUPABASE_URL 정규화: 끝의 '/'와 공백 제거. 잘못 붙으면 storage URL이 //로 깨짐.
+  let url = process.env.SUPABASE_URL.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(url)) {
+    url = `https://${url}`;
+  }
   _admin = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    url,
+    process.env.SUPABASE_SERVICE_ROLE_KEY.trim(),
     { auth: { persistSession: false } }
   );
   return _admin;
